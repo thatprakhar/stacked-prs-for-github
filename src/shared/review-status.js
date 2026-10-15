@@ -16,17 +16,25 @@
     return actor.__typename === 'Bot' || /\[bot\]$/i.test(actor.login);
   }
 
-  function humanReviewState(pullRequest) {
+  function latestStateByReviewer(pullRequest, fromBots) {
     const authorLogin = pullRequest.author ? pullRequest.author.login : null;
     const latestByReviewer = new Map();
     const reviews = (pullRequest.reviews && pullRequest.reviews.nodes) || [];
     for (const review of reviews) {
-      if (review.state === 'PENDING' || isBot(review.author) || review.author.login === authorLogin) continue;
+      if (review.state === 'PENDING' || !review.author || isBot(review.author) !== fromBots || review.author.login === authorLogin) continue;
       const previous = latestByReviewer.get(review.author.login);
       if (review.state === 'COMMENTED' && previous && previous !== 'COMMENTED') continue;
       latestByReviewer.set(review.author.login, review.state);
     }
-    const states = [...latestByReviewer.values()];
+    return latestByReviewer;
+  }
+
+  function botApprovals(pullRequest) {
+    return [...latestStateByReviewer(pullRequest, true)].filter(([, state]) => state === 'APPROVED').map(([login]) => login);
+  }
+
+  function humanReviewState(pullRequest) {
+    const states = [...latestStateByReviewer(pullRequest, false).values()];
     if (states.includes('CHANGES_REQUESTED')) return 'changes_requested';
     if (states.includes('APPROVED')) return 'approved';
     if (states.length > 0) return 'reviewed';
@@ -52,10 +60,10 @@
     const reviewed = humanReviewState(pullRequest);
     if (reviewed) return { kind: reviewed };
     const hours = workHours(readyForReviewAt(pullRequest), now, settings);
-    return { kind: 'awaiting', hours, level: slaLevel(hours, settings) };
+    return { kind: 'awaiting', hours, level: slaLevel(hours, settings), botApprovals: botApprovals(pullRequest) };
   }
 
-  const api = { DEFAULT_SETTINGS, reviewStatus, humanReviewState, readyForReviewAt, slaLevel };
+  const api = { DEFAULT_SETTINGS, reviewStatus, humanReviewState, botApprovals, readyForReviewAt, slaLevel };
   root.GitHubStacks = Object.assign(root.GitHubStacks || {}, api);
   if (typeof module !== 'undefined') module.exports = api;
 })(globalThis);

@@ -4,7 +4,8 @@ A Chrome extension that makes stacked pull requests easy to read on GitHub and G
 
 - **Pull request list** (`/<owner>/<repo>/pulls`): replaces GitHub's flat list with a stacked view. Each stack is a
   collapsible row with its members in stack order, a progress bar (one segment per pull request, colored by review
-  state; click a segment to open it) and the longest wait in the stack. Every row shows the author's avatar, checks,
+  state, and green once a person or a bot such as CodeRabbit approved it; click a segment to open it) and the longest
+  wait in the stack. Every row shows the author's avatar, checks,
   comments and a review SLA pill. As in GitHub's own list, a blue bar marks pull requests updated since you last
   viewed them, and a stack's header says how many of its pull requests were updated, so a collapsed stack shows it too.
   The summary pills (SLA breached, at risk, on track) filter the list. Use the list icon to switch back to GitHub's own
@@ -86,6 +87,7 @@ All of this is editable in the settings page.
 | `4.1h · At risk` | Waited at least the at-risk threshold |
 | `1.0h · On track` | Below the at-risk threshold |
 | Approved, Changes requested, Reviewed | A person has reviewed it; the clock has stopped |
+| `✓ coderabbitai approved` (beside the branches) | A bot approved it. Its progress-bar segment turns green, but the clock keeps running until a person reviews |
 | Draft, Merged, Closed | Not on the clock |
 
 ## Publish to the Chrome Web Store

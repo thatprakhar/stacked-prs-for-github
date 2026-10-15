@@ -37,7 +37,7 @@
   };
 
   function person(login) {
-    if (login.endsWith('[bot]')) return { login, avatarUrl: identicon(login, 100), __typename: 'Bot' };
+    if (login.endsWith('[bot]') || login === 'coderabbitai') return { login, avatarUrl: identicon(login, 100), __typename: 'Bot' };
     return { login, avatarUrl: PEOPLE[login], __typename: 'User' };
   }
 
@@ -63,7 +63,7 @@
 
   const PULL_REQUESTS = [
     pullRequest(214, '[docs] Explain the release checklist step by step', 'devon-reyes', 'devon/release-checklist', 'main', { ready: '2026-10-15T15:45:00-04:00', labels: ['docs'], comments: 1 }),
-    pullRequest(213, '[search] Highlight matched terms in results', 'sam-okafor', 'sam/search-highlight', 'sam/search-ranking', { ready: '2026-10-15T13:30:00-04:00', labels: ['search'], comments: 2, unread: true }),
+    pullRequest(213, '[search] Highlight matched terms in results', 'sam-okafor', 'sam/search-highlight', 'sam/search-ranking', { ready: '2026-10-15T13:30:00-04:00', labels: ['search'], comments: 2, unread: true, reviews: [['coderabbitai', 'APPROVED']] }),
     pullRequest(212, '[ui] Dark mode for the account menu', 'lee-park', 'lee/account-menu-dark', 'main', { ready: '2026-10-15T09:00:00-04:00', labels: ['ui'], comments: 4, unread: true }),
     pullRequest(211, '[search] Rank results by recent sales', 'sam-okafor', 'sam/search-ranking', 'sam/search-variants', { ready: '2026-10-14T15:00:00-04:00', labels: ['search'], comments: 3 }),
     pullRequest(210, '[search] Index product variants', 'sam-okafor', 'sam/search-variants', 'main', { labels: ['search'], checks: 'FAILURE', comments: 6, reviews: [['mira-chen', 'CHANGES_REQUESTED']] }),

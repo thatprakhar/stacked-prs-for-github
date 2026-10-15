@@ -432,6 +432,18 @@
   font-size: 12px;
 }
 
+.ghs-bot-approval {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--ghs-fg-success);
+}
+
+.ghs-bot-approval .ghs-octicon {
+  width: 12px;
+  height: 12px;
+}
+
 .ghs-separator {
   color: var(--ghs-fg-muted);
   opacity: 0.6;
@@ -648,7 +660,8 @@
   opacity: 0.45;
 }
 
-.ghs-segment--kind-approved {
+.ghs-segment--kind-approved,
+.ghs-segment--kind-bot_approved {
   background: var(--ghs-fg-success);
 }
 

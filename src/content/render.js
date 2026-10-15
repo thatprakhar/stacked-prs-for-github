@@ -115,6 +115,10 @@
     return element('span', { className: 'ghs-separator', text: '·', attributes: { 'aria-hidden': 'true' } });
   }
 
+  function botApprovalNote(logins) {
+    return element('span', { className: 'ghs-bot-approval', attributes: { title: 'Approved by a bot; still waiting for a person to review' } }, [octicon('check'), `${logins.join(', ')} approved`]);
+  }
+
   function pullRequestRow(pullRequest, status, options = {}) {
     const labels = (pullRequest.labels && pullRequest.labels.nodes) || [];
     const comments = pullRequest.comments ? pullRequest.comments.totalCount : 0;
@@ -148,6 +152,8 @@
           element('span', { className: 'ghs-branch', text: pullRequest.baseRefName }),
           stackBadge ? separator() : null,
           stackBadge,
+          status.kind === 'awaiting' && status.botApprovals.length > 0 ? separator() : null,
+          status.kind === 'awaiting' && status.botApprovals.length > 0 ? botApprovalNote(status.botApprovals) : null,
         ]),
       ]),
       element('div', { className: 'ghs-row-signals' }, [
