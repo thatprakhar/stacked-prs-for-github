@@ -1,5 +1,5 @@
 (function (root) {
-  const { ListView, StackNavigator } = root.GitHubStacks;
+  const { ListView, StackNavigator, api } = root.GitHubStacks;
 
   const LIST_PATH = /^\/([^/]+)\/([^/]+)\/pulls(?:\/.*)?$/;
   const PULL_REQUEST_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)(?:\/([^/]+))?/;
@@ -39,7 +39,7 @@
   new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
   for (const event of ['turbo:load', 'turbo:render', 'popstate', 'pageshow']) window.addEventListener(event, schedule);
   document.addEventListener('turbo:load', schedule);
-  chrome.storage.onChanged.addListener((changes) => {
+  if (api.extensionAlive()) chrome.storage.onChanged.addListener((changes) => {
     if (changes.settings || changes.tokens) {
       listView.key = null;
       navigator.key = null;

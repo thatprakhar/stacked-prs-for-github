@@ -180,6 +180,29 @@
   }
 }
 
+.ghs-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--borderColor-attention-muted, #d4a72c66);
+  background: var(--ghs-bg-attention);
+  color: var(--ghs-fg);
+  font-size: 13px;
+}
+
+.ghs-notice .ghs-octicon {
+  margin-right: 4px;
+  color: var(--ghs-fg-attention);
+}
+
+.ghs-button--small {
+  height: 24px;
+  padding: 0 8px;
+}
+
 .ghs-message {
   display: flex;
   flex-wrap: wrap;

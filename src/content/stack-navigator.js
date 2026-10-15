@@ -9,13 +9,10 @@
       this.root = element('aside', { className: 'ghs-navigator', attributes: { 'aria-label': 'Pull request stack' } });
       this.key = null;
       this.collapsed = false;
-      chrome.storage.local.get('navigatorCollapsed').then(
-        ({ navigatorCollapsed }) => {
-          this.collapsed = Boolean(navigatorCollapsed);
-          if (this.view) this.render();
-        },
-        () => {},
-      );
+      api.readLocal('navigatorCollapsed', false).then((collapsed) => {
+        this.collapsed = Boolean(collapsed);
+        if (this.view) this.render();
+      });
     }
 
     sync(route) {
@@ -57,7 +54,7 @@
 
     setCollapsed(collapsed) {
       this.collapsed = collapsed;
-      chrome.storage.local.set({ navigatorCollapsed: collapsed }).catch(() => {});
+      api.writeLocal({ navigatorCollapsed: collapsed });
       this.render();
     }
 

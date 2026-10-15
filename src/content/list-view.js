@@ -42,19 +42,6 @@
     return input ? input.value : 'is:pr is:open';
   }
 
-  async function readLocal(key, fallback) {
-    try {
-      const stored = await chrome.storage.local.get(key);
-      return stored[key] === undefined ? fallback : stored[key];
-    } catch {
-      return fallback;
-    }
-  }
-
-  function writeLocal(key, value) {
-    chrome.storage.local.set({ [key]: value }).catch(() => {});
-  }
-
   class ListView {
     constructor() {
       this.root = element('section', { className: 'ghs-root', attributes: { 'aria-label': 'Stacked pull requests' } });
@@ -66,7 +53,7 @@
       this.filter = null;
       this.enabled = true;
       this.expanded = new Set();
-      this.ready = Promise.all([readLocal('stackedView', true), readLocal('expandedStacks', [])]).then(([enabled, expanded]) => {
+      this.ready = Promise.all([api.readLocal('stackedView', true), api.readLocal('expandedStacks', [])]).then(([enabled, expanded]) => {
         this.enabled = enabled;
         this.expanded = new Set(expanded);
       });
@@ -117,6 +104,13 @@
 
     tick() {
       if (!this.root.isConnected || document.visibilityState !== 'visible' || !this.data) return;
+      if (!api.extensionAlive()) {
+        if (!this.stale) {
+          this.stale = true;
+          this.render();
+        }
+        return;
+      }
       if (Date.now() - this.data.fetchedAt > REFRESH_MILLISECONDS) this.load({ quiet: true });
       else this.render();
     }
@@ -138,7 +132,8 @@
         this.error = null;
       } catch (error) {
         if (key !== this.key) return;
-        this.error = error;
+        if (error.code === api.CONTEXT_INVALIDATED && this.data) this.stale = true;
+        else this.error = error;
       } finally {
         if (key === this.key) {
           this.loading = false;
@@ -150,7 +145,7 @@
 
     setEnabled(enabled) {
       this.enabled = enabled;
-      writeLocal('stackedView', enabled);
+      api.writeLocal({ stackedView: enabled });
       this.render();
       this.applyNativeVisibility();
     }
@@ -163,7 +158,7 @@
       const key = this.stackStorageKey(stack);
       if (expanded) this.expanded.add(key);
       else this.expanded.delete(key);
-      writeLocal('expandedStacks', [...this.expanded].slice(-200));
+      api.writeLocal({ expandedStacks: [...this.expanded].slice(-200) });
       this.render();
     }
 
@@ -195,7 +190,17 @@
       return element('div', { className: 'ghs-message' }, [element('div', { className: 'ghs-message-text' }, message), element('div', { className: 'ghs-actions' }, actions)]);
     }
 
+    renderStaleNotice() {
+      return element('div', { className: 'ghs-notice', attributes: { role: 'status' } }, [
+        element('span', {}, [octicon('sync'), ' Stacked PRs for GitHub was updated. Refresh the page for the new version and live data.']),
+        this.button('Refresh page', () => location.reload(), null, 'ghs-button--small'),
+      ]);
+    }
+
     renderContent() {
+      if (this.error && this.error.code === api.CONTEXT_INVALIDATED) {
+        return [this.renderMessage([octicon('sync'), ' Stacked PRs for GitHub was updated. Refresh the page to use it.'], [this.button('Refresh page', () => location.reload(), 'sync', 'ghs-button--primary')])];
+      }
       if (this.error) {
         const needsToken = this.error.code === 'no_token' || this.error.code === 'bad_token';
         return [
@@ -263,7 +268,7 @@
         ),
         element('div', { className: 'ghs-actions' }, [
           stackCount > 0 ? this.button(this.allExpanded(entries) ? 'Collapse all' : 'Expand all', () => this.toggleAll(entries), null, 'ghs-button--small') : null,
-          this.iconButton('Refresh', 'sync', () => this.load({ quiet: true }), this.loading ? 'is-spinning' : ''),
+          this.iconButton('Refresh', 'sync', () => (this.stale ? location.reload() : this.load({ quiet: true })), this.loading ? 'is-spinning' : ''),
           this.iconButton('Settings', 'gear', () => api.openOptions()),
           this.iconButton('Show the GitHub list', 'list-unordered', () => this.setEnabled(false)),
         ]),
@@ -280,7 +285,7 @@
         separator(),
         `Updated ${updated}`,
       ]);
-      return [toolbar, list, footer];
+      return [this.stale ? this.renderStaleNotice() : null, toolbar, list, footer].filter(Boolean);
     }
 
     allExpanded(entries) {
@@ -295,7 +300,7 @@
         if (expand) this.expanded.add(key);
         else this.expanded.delete(key);
       }
-      writeLocal('expandedStacks', [...this.expanded].slice(-200));
+      api.writeLocal({ expandedStacks: [...this.expanded].slice(-200) });
       this.render();
     }
 

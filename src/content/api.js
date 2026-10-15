@@ -30,8 +30,43 @@
     }
   }
 
+  const CONTEXT_INVALIDATED = 'context_invalidated';
+
+  function extensionAlive() {
+    try {
+      return Boolean(chrome.runtime && chrome.runtime.id);
+    } catch {
+      return false;
+    }
+  }
+
+  async function callExtension(call) {
+    if (!extensionAlive()) throw new GitHubError('The extension was updated or reloaded', CONTEXT_INVALIDATED);
+    try {
+      return await call();
+    } catch (error) {
+      if (!extensionAlive() || /context invalidated/i.test(error.message)) {
+        throw new GitHubError('The extension was updated or reloaded', CONTEXT_INVALIDATED);
+      }
+      throw error;
+    }
+  }
+
+  async function readLocal(key, fallback) {
+    try {
+      const stored = await callExtension(() => chrome.storage.local.get(key));
+      return stored[key] === undefined ? fallback : stored[key];
+    } catch {
+      return fallback;
+    }
+  }
+
+  function writeLocal(values) {
+    callExtension(() => chrome.storage.local.set(values)).catch(() => {});
+  }
+
   async function send(message) {
-    const response = await chrome.runtime.sendMessage(message);
+    const response = await callExtension(() => chrome.runtime.sendMessage(message));
     if (!response) throw new GitHubError('The extension did not answer', 'error');
     if (!response.ok) throw new GitHubError(response.error, response.code);
     return response.data;
@@ -93,7 +128,7 @@
   }
 
   async function settings() {
-    const { settings: saved = {} } = await chrome.storage.sync.get('settings');
+    const { settings: saved = {} } = await callExtension(() => chrome.storage.sync.get('settings'));
     return { ...root.GitHubStacks.DEFAULT_SETTINGS, ...saved };
   }
 
@@ -102,6 +137,6 @@
   }
 
   root.GitHubStacks = Object.assign(root.GitHubStacks || {}, {
-    api: { searchPullRequests, listStacks, stackForPullRequest, pullRequestsByNumber, settings, openOptions },
+    api: { searchPullRequests, listStacks, stackForPullRequest, pullRequestsByNumber, settings, openOptions, extensionAlive, readLocal, writeLocal, CONTEXT_INVALIDATED },
   });
 })(globalThis);
