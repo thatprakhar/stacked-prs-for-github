@@ -5,10 +5,13 @@ A Chrome extension that makes stacked pull requests easy to read on GitHub and G
 - **Pull request list** (`/<owner>/<repo>/pulls`): replaces GitHub's flat list with a stacked view. Each stack is a
   collapsible row with its members in stack order, a progress bar (one segment per pull request, colored by review
   state; click a segment to open it) and the longest wait in the stack. Every row shows the author's avatar, checks,
-  comments and a review SLA pill. The summary pills (SLA breached, at risk, on track) filter the list. Use the list icon
-  to switch back to GitHub's own list.
+  comments and a review SLA pill. As in GitHub's own list, a blue bar marks pull requests updated since you last
+  viewed them, and a stack's header says how many of its pull requests were updated, so a collapsed stack shows it too.
+  The summary pills (SLA breached, at risk, on track) filter the list. Use the list icon to switch back to GitHub's own
+  list.
 - **Pull request page**: a floating stack navigator showing the base branch, every pull request in the stack, where you
-  are, and previous/next buttons that keep you on the same tab (Files changed stays Files changed).
+  are, a blue dot on the ones updated since you last viewed them, and previous/next buttons that keep you on the same
+  tab (Files changed stays Files changed).
 
 Stacks come from GitHub's native stacks (`gh stack link`, REST `GET /repos/{owner}/{repo}/stacks`). Pull requests in
 no native stack are still grouped when one's base branch is another's head branch ("Stack · from branches").

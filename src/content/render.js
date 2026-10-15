@@ -105,6 +105,12 @@
     });
   }
 
+  function isUnread(pullRequest) {
+    return pullRequest.isReadByViewer === false;
+  }
+
+  const UNREAD_TEXT = 'Updated since you last viewed it';
+
   function separator() {
     return element('span', { className: 'ghs-separator', text: '·', attributes: { 'aria-hidden': 'true' } });
   }
@@ -121,11 +127,13 @@
           ])
         : null;
 
-    return element('div', { className: `ghs-row${options.current ? ' is-current' : ''}`, attributes: { 'data-number': pullRequest.number } }, [
+    const unread = isUnread(pullRequest);
+    return element('div', { className: `ghs-row${options.current ? ' is-current' : ''}${unread ? ' is-unread' : ''}`, attributes: { 'data-number': pullRequest.number } }, [
       options.gutter || null,
       element('div', { className: 'ghs-row-icon' }, stateIcon(pullRequestState(pullRequest))),
       element('div', { className: 'ghs-row-avatar' }, avatar(pullRequest.author)),
       element('div', { className: 'ghs-row-main' }, [
+        unread ? element('span', { className: 'ghs-visually-hidden', text: `${UNREAD_TEXT}.` }) : null,
         element('div', { className: 'ghs-row-title-line' }, [
           element('a', { className: 'ghs-row-title', text: pullRequest.title, attributes: { href: pullRequest.url, 'data-turbo-frame': '_top' } }),
           ...labels.map(labelChip),
@@ -155,6 +163,6 @@
   }
 
   root.GitHubStacks = Object.assign(root.GitHubStacks || {}, {
-    render: { element, statusPill, stateIcon, pullRequestState, avatar, pullRequestRow, formatHours, separator, LEVEL_TEXT, LEVEL_TONE },
+    render: { element, statusPill, stateIcon, pullRequestState, avatar, pullRequestRow, formatHours, separator, isUnread, UNREAD_TEXT, LEVEL_TEXT, LEVEL_TONE },
   });
 })(globalThis);

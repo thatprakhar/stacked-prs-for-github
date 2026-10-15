@@ -47,6 +47,7 @@
       title,
       url: `https://github.com/acme/storefront/pull/${number}`,
       isDraft: Boolean(options.draft),
+      isReadByViewer: !options.unread,
       state: options.state || 'OPEN',
       createdAt: options.ready || '2026-10-14T10:00:00-04:00',
       headRefName: head,
@@ -62,8 +63,8 @@
 
   const PULL_REQUESTS = [
     pullRequest(214, '[docs] Explain the release checklist step by step', 'devon-reyes', 'devon/release-checklist', 'main', { ready: '2026-10-15T15:45:00-04:00', labels: ['docs'], comments: 1 }),
-    pullRequest(213, '[search] Highlight matched terms in results', 'sam-okafor', 'sam/search-highlight', 'sam/search-ranking', { ready: '2026-10-15T13:30:00-04:00', labels: ['search'], comments: 2 }),
-    pullRequest(212, '[ui] Dark mode for the account menu', 'lee-park', 'lee/account-menu-dark', 'main', { ready: '2026-10-15T09:00:00-04:00', labels: ['ui'], comments: 4 }),
+    pullRequest(213, '[search] Highlight matched terms in results', 'sam-okafor', 'sam/search-highlight', 'sam/search-ranking', { ready: '2026-10-15T13:30:00-04:00', labels: ['search'], comments: 2, unread: true }),
+    pullRequest(212, '[ui] Dark mode for the account menu', 'lee-park', 'lee/account-menu-dark', 'main', { ready: '2026-10-15T09:00:00-04:00', labels: ['ui'], comments: 4, unread: true }),
     pullRequest(211, '[search] Rank results by recent sales', 'sam-okafor', 'sam/search-ranking', 'sam/search-variants', { ready: '2026-10-14T15:00:00-04:00', labels: ['search'], comments: 3 }),
     pullRequest(210, '[search] Index product variants', 'sam-okafor', 'sam/search-variants', 'main', { labels: ['search'], checks: 'FAILURE', comments: 6, reviews: [['mira-chen', 'CHANGES_REQUESTED']] }),
     pullRequest(209, '[deps] Bump the image pipeline to v4', 'renovate[bot]', 'renovate/image-pipeline-4.x', 'main', { ready: '2026-10-15T11:00:00-04:00', labels: ['dependencies'] }),
@@ -71,7 +72,7 @@
     pullRequest(206, '[infra] Cache build layers between CI runs', 'priya-nair', 'priya/ci-layer-cache', 'main', { labels: ['infra'], comments: 2, reviews: [['lee-park', 'APPROVED']] }),
     pullRequest(205, '[checkout] Show the order summary on the review page', 'mira-chen', 'mira/order-summary', 'mira/discount-codes', { ready: '2026-10-15T14:00:00-04:00', labels: ['checkout'], comments: 1 }),
     pullRequest(203, '[checkout] Apply discount codes at the totals step', 'mira-chen', 'mira/discount-codes', 'mira/shipping-rates', { ready: '2026-10-15T10:40:00-04:00', labels: ['checkout'], checks: 'PENDING', comments: 2 }),
-    pullRequest(202, '[checkout] Price shipping by weight and zone', 'mira-chen', 'mira/shipping-rates', 'mira/cart-totals', { ready: '2026-10-15T09:10:00-04:00', labels: ['checkout'], comments: 3 }),
+    pullRequest(202, '[checkout] Price shipping by weight and zone', 'mira-chen', 'mira/shipping-rates', 'mira/cart-totals', { ready: '2026-10-15T09:10:00-04:00', labels: ['checkout'], comments: 3, unread: true }),
     pullRequest(201, '[checkout] Add the cart totals service', 'mira-chen', 'mira/cart-totals', 'main', { labels: ['checkout'], comments: 5, reviews: [['devon-reyes', 'APPROVED']] }),
   ];
   const MERGED = pullRequest(198, '[checkout] Move money formatting into a shared helper', 'mira-chen', 'mira/money-format', 'main', { state: 'MERGED', labels: ['checkout'] });

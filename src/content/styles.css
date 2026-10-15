@@ -498,6 +498,39 @@
   text-decoration: none;
 }
 
+/* Unread: updated since the viewer last opened it, like GitHub's own list */
+
+.ghs-row.is-unread,
+.ghs-stack-header.is-unread {
+  box-shadow: inset 3px 0 0 var(--borderColor-accent-emphasis, #0969da);
+}
+
+.ghs-meta-unread {
+  color: var(--ghs-fg-accent);
+  font-weight: 500;
+}
+
+.ghs-segment.is-unread {
+  box-shadow: 0 3px 0 -1px var(--borderColor-accent-emphasis, #0969da);
+}
+
+.ghs-unread-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--borderColor-accent-emphasis, #0969da);
+}
+
+.ghs-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* Stacks */
 
 .ghs-stack-header {

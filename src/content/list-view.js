@@ -1,8 +1,9 @@
 (function (root) {
   const { octicon, api, reviewStatus, groupPullRequests } = root.GitHubStacks;
-  const { element, statusPill, pullRequestRow, separator, LEVEL_TEXT, LEVEL_TONE } = root.GitHubStacks.render;
+  const { element, statusPill, pullRequestRow, separator, isUnread, LEVEL_TEXT, LEVEL_TONE } = root.GitHubStacks.render;
 
   const REFRESH_MILLISECONDS = 3 * 60 * 1000;
+  const REFRESH_ON_RETURN_MILLISECONDS = 30 * 1000;
   const LEVELS = ['breached', 'at_risk', 'on_track'];
   const PAGINATION_SELECTOR = 'nav[aria-label="Pagination"], nav[aria-label="pagination"], .paginate-container, [data-testid="pagination"]';
 
@@ -58,7 +59,7 @@
         this.expanded = new Set(expanded);
       });
       setInterval(() => this.tick(), 60 * 1000);
-      document.addEventListener('visibilitychange', () => this.tick());
+      document.addEventListener('visibilitychange', () => this.tick(REFRESH_ON_RETURN_MILLISECONDS));
     }
 
     sync(route) {
@@ -102,7 +103,7 @@
       }
     }
 
-    tick() {
+    tick(maximumAge = REFRESH_MILLISECONDS) {
       if (!this.root.isConnected || document.visibilityState !== 'visible' || !this.data) return;
       if (!api.extensionAlive()) {
         if (!this.stale) {
@@ -111,7 +112,7 @@
         }
         return;
       }
-      if (Date.now() - this.data.fetchedAt > REFRESH_MILLISECONDS) this.load({ quiet: true });
+      if (Date.now() - this.data.fetchedAt > maximumAge) this.load({ quiet: true });
       else this.render();
     }
 
@@ -312,6 +313,7 @@
       const oldest = awaiting.reduce((worst, status) => (!worst || status.hours > worst.hours ? status : worst), null);
       const merged = stack.members.filter((member) => member.state === 'merged').length;
       const authors = [...new Set(entry.rows.map((row) => (row.pullRequest.author ? row.pullRequest.author.login : 'ghost')))];
+      const unread = entry.rows.filter((row) => isUnread(row.pullRequest)).length;
       const { owner, repository } = this.route;
 
       const segments = stack.members.map((member) => {
@@ -320,7 +322,7 @@
         const tone = status ? (status.kind === 'awaiting' ? `level-${status.level}` : `kind-${status.kind}`) : `kind-${member.state === 'open' ? 'unlisted' : member.state}`;
         const description = pullRequest ? `${member.position}. #${member.number} ${pullRequest.title}` : `${member.position}. #${member.number} (${member.state === 'open' ? 'not in this list' : member.state})`;
         return element('a', {
-          className: `ghs-segment ghs-segment--${tone}`,
+          className: `ghs-segment ghs-segment--${tone}${pullRequest && isUnread(pullRequest) ? ' is-unread' : ''}`,
           attributes: { href: `/${owner}/${repository}/pull/${member.number}`, title: description, 'aria-label': description },
         });
       });
@@ -330,7 +332,7 @@
         { className: 'ghs-chevron', attributes: { type: 'button', 'aria-expanded': String(expanded), 'aria-label': expanded ? 'Collapse stack' : 'Expand stack' } },
         octicon('chevron-right'),
       );
-      const header = element('div', { className: 'ghs-stack-header' }, [
+      const header = element('div', { className: `ghs-stack-header${unread > 0 ? ' is-unread' : ''}` }, [
         chevron,
         element('div', { className: 'ghs-stack-icon' }, octicon('stack')),
         element('div', { className: 'ghs-stack-main' }, [
@@ -342,6 +344,8 @@
             `${stack.members.length} PRs`,
             separator(),
             `${awaiting.length} awaiting review`,
+            unread > 0 ? separator() : null,
+            unread > 0 ? element('span', { className: 'ghs-meta-unread', text: `${unread} updated`, attributes: { title: `${unread} updated since you last viewed them` } }) : null,
             merged > 0 ? separator() : null,
             merged > 0 ? `${merged} merged` : null,
             separator(),

@@ -1,6 +1,6 @@
 (function (root) {
   const PULL_REQUEST_FIELDS = `
-    number title url isDraft state createdAt headRefName baseRefName
+    number title url isDraft isReadByViewer state createdAt headRefName baseRefName
     author { login avatarUrl(size: 48) url __typename }
     comments { totalCount }
     labels(first: 6) { nodes { name color } }
