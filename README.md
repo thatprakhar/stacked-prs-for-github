@@ -79,3 +79,7 @@ No build step and no dependencies. Node 22 or later.
 The list view finds GitHub's own list by taking the nearest common ancestor of the links to pull requests in the page,
 hides it and inserts its own list before it, so it does not depend on GitHub's class names. It shows up to 200 pull
 requests matching the search box query (or the `q` URL parameter).
+
+## License
+
+[MIT](LICENSE)
