@@ -1,0 +1,9 @@
+{
+  "name": "stacked-prs-for-github",
+  "private": true,
+  "description": "Chrome extension that groups stacked pull requests on GitHub and shows how long each has waited for review",
+  "scripts": {
+    "test": "node --test test/",
+    "package": "rm -rf dist && mkdir -p dist && zip -qr dist/stacked-prs-for-github-$(node -p \"require('./manifest.json').version\").zip manifest.json src options icons README.md && ls dist"
+  }
+}

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Stacked PRs for GitHub preview</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@primer/primitives@10.3.4/dist/css/functional/themes/light.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@primer/primitives@10.3.4/dist/css/functional/themes/dark.css" />
+    <link rel="stylesheet" href="../src/content/styles.css" />
+    <style>
+      body { margin: 0; background: var(--bgColor-default); color: var(--fgColor-default); font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif; }
+      .top { display: flex; align-items: center; gap: 8px; padding: 14px 32px 6px; background: var(--bgColor-inset); }
+      .repo { font-size: 16px; }
+      .repo strong { font-weight: 600; }
+      .tabs { display: flex; gap: 20px; padding: 0 32px; background: var(--bgColor-inset); border-bottom: 1px solid var(--borderColor-default); }
+      .tabs span { padding: 8px 2px; color: var(--fgColor-muted); }
+      .tabs span.selected { color: var(--fgColor-default); font-weight: 600; box-shadow: inset 0 -2px 0 #fd8c73; }
+      .page { max-width: 1216px; margin: 0 auto; padding: 24px 32px; }
+      .search { display: block; height: 32px; width: 100%; box-sizing: border-box; margin-bottom: 16px; padding: 0 12px; border: 1px solid var(--borderColor-default); border-radius: 6px; background: var(--bgColor-default); color: inherit; font: inherit; }
+      .box { border: 1px solid var(--borderColor-default); border-radius: 6px; overflow: hidden; }
+      .box-header { display: flex; gap: 16px; padding: 12px 16px; background: var(--bgColor-muted); }
+      .muted { color: var(--fgColor-muted); }
+      .native { margin: 0; padding: 0; list-style: none; }
+      .native li { padding: 8px 16px; border-top: 1px solid var(--borderColor-muted); }
+      .pull-title { margin: 0 0 8px; font-size: 32px; font-weight: 400; }
+      .pull-title span { color: var(--fgColor-muted); font-weight: 300; }
+      .state { display: inline-block; padding: 5px 12px; border-radius: 2em; background: #1f883d; color: #fff; font-weight: 500; margin-right: 8px; }
+      .placeholder { height: 12px; margin: 16px; border-radius: 6px; background: var(--bgColor-neutral-muted); }
+      .placeholder:nth-child(3n) { width: 60%; }
+      .placeholder:nth-child(4n) { width: 80%; }
+      #log:empty { display: none; }
+    </style>
+  </head>
+  <body>
+    <div class="top"><span class="repo"><span id="owner"></span> / <strong id="repository"></strong></span></div>
+    <div class="tabs"><span>Code</span><span>Issues</span><span class="selected">Pull requests</span><span>Actions</span><span>Insights</span></div>
+    <div class="page" id="page"></div>
+    <pre id="log"></pre>
+    <script>
+      for (const level of ['warn', 'error']) {
+        const original = console[level];
+        console[level] = (...values) => {
+          document.getElementById('log').textContent += `${level}: ${values.map((value) => (value && value.stack) || String(value)).join(' ')}\n`;
+          original(...values);
+        };
+      }
+      window.addEventListener('error', (event) => console.error(event.error || event.message));
+      window.addEventListener('unhandledrejection', (event) => console.error(event.reason));
+    </script>
+    <script src="demo.js"></script>
+    <script>
+      // ?demo uses dev/demo.js; otherwise ?host=&repo= reads live data through dev/server.js.
+      // ?q= search, ?pr= pull request page, ?expand=stack-208,stack-215, ?theme=dark.
+      const parameters = new URLSearchParams(location.search);
+      const demo = parameters.has('demo');
+      const host = demo ? 'github.com' : parameters.get('host') || 'github.com';
+      const [owner, repository] = (demo ? 'acme/storefront' : parameters.get('repo') || 'owner/repository').split('/');
+      const number = parameters.get('pr');
+      const theme = parameters.get('theme') === 'dark' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-color-mode', theme);
+      document.documentElement.setAttribute(`data-${theme}-theme`, theme);
+      document.getElementById('owner').textContent = owner;
+      document.getElementById('repository').textContent = repository;
+
+      const page = document.getElementById('page');
+      if (number) {
+        page.innerHTML = `
+          <h1 class="pull-title"></h1>
+          <p><span class="state">Open</span><span class="muted" id="subtitle"></span></p>
+          <div class="box"><div class="box-header"><strong>Conversation</strong><span class="muted">Commits</span><span class="muted">Checks</span><span class="muted">Files changed</span></div>
+          <div>${'<div class="placeholder"></div>'.repeat(16)}</div></div>`;
+        page.querySelector('.pull-title').textContent = demo ? '[checkout] Apply discount codes at the totals step ' : 'Pull request ';
+        page.querySelector('.pull-title').append(Object.assign(document.createElement('span'), { textContent: `#${number}` }));
+        if (demo) page.querySelector('#subtitle').textContent = 'mira-chen wants to merge 3 commits into mira/shipping-rates from mira/discount-codes';
+      } else {
+        page.innerHTML = `
+          <input class="search" id="search" />
+          <div class="box"><div class="box-header"><strong>Open</strong><span class="muted">Closed</span></div><ul class="native" id="native"></ul></div>`;
+        page.querySelector('#search').value = parameters.get('q') || 'is:pr is:open';
+        for (const link of (parameters.get('rows') || '201,202').split(',')) {
+          const item = document.createElement('li');
+          const anchor = Object.assign(document.createElement('a'), { href: `https://${host}/${owner}/${repository}/pull/${link}`, textContent: `Native row #${link}` });
+          item.append(anchor);
+          document.getElementById('native').append(item);
+        }
+      }
+
+      const storage = new Map();
+      const area = {
+        async get(keys) {
+          const result = {};
+          for (const key of [].concat(keys)) if (storage.has(key)) result[key] = storage.get(key);
+          return result;
+        },
+        async set(values) {
+          for (const [key, value] of Object.entries(values)) storage.set(key, value);
+        },
+      };
+      if (parameters.get('expand')) storage.set('expandedStacks', parameters.get('expand').split(',').map((key) => `${host}/${owner}/${repository}:${key}`));
+      if (demo) {
+        storage.set('settings', { timeZone: 'America/New_York' });
+        Date.now = () => GitHubStacksDemo.now;
+      }
+      window.chrome = {
+        runtime: {
+          async sendMessage(message) {
+            if (demo) return { ok: true, data: GitHubStacksDemo.answer(message) };
+            const response = await fetch('/message', { method: 'POST', body: JSON.stringify(message) });
+            return response.json();
+          },
+        },
+        storage: { local: area, sync: area, onChanged: { addListener() {} } },
+      };
+      globalThis.GitHubStacks = {
+        testLocation: { host, pathname: number ? `/${owner}/${repository}/pull/${number}` : `/${owner}/${repository}/pulls` },
+      };
+    </script>
+    <script src="../src/shared/work-hours.js"></script>
+    <script src="../src/shared/review-status.js"></script>
+    <script src="../src/shared/stacks.js"></script>
+    <script src="../src/content/octicons.js"></script>
+    <script src="../src/content/api.js"></script>
+    <script src="../src/content/render.js"></script>
+    <script src="../src/content/list-view.js"></script>
+    <script src="../src/content/stack-navigator.js"></script>
+    <script src="../src/content/main.js"></script>
+  </body>
+</html>

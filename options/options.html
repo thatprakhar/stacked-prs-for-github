@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Stacked PRs for GitHub settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="page-header">
+        <img src="../icons/icon-48.png" width="32" height="32" alt="" />
+        <div>
+          <h1>Stacked PRs for GitHub</h1>
+          <p class="muted">Groups stacked pull requests and shows how long each one has waited for its first human review.</p>
+        </div>
+      </header>
+
+      <section class="box">
+        <div class="box-header">
+          <h2>Access tokens</h2>
+          <p class="muted">
+            One token per GitHub host. Using the extension on a GitHub Enterprise host (<code>*.ghe.com</code>) adds that host here,
+            or add it yourself below. The quickest way to get a token is the GitHub CLI command under each host; a fine-grained
+            token needs read access to pull requests and metadata. The token stays in this browser and is used only by the
+            extension's background worker, never by the page.
+          </p>
+        </div>
+        <div id="tokens" class="box-body"></div>
+        <form id="add-host" class="box-footer">
+          <input id="new-host" type="text" placeholder="your-company.ghe.com" pattern="([a-z0-9-]+\.ghe\.com|github\.com)" aria-label="Host" />
+          <button type="submit" class="button">Add host</button>
+        </form>
+      </section>
+
+      <section class="box">
+        <div class="box-header">
+          <h2>Review SLA</h2>
+          <p class="muted">The clock starts when a pull request is ready for review and stops at its first review by a person. Bots and the author do not count, and only work hours are counted.</p>
+        </div>
+        <form id="settings" class="box-body grid">
+          <label>SLA, in work hours <input name="slaHours" type="number" min="0.5" step="0.5" required /></label>
+          <label>At risk after, in work hours <input name="atRiskHours" type="number" min="0" step="0.5" required /></label>
+          <label>Time zone <input name="timeZone" type="text" list="time-zones" required /></label>
+          <label>Work day starts at (hour) <input name="workdayStart" type="number" min="0" max="23.5" step="0.5" required /></label>
+          <label>Work day ends at (hour) <input name="workdayEnd" type="number" min="0.5" max="24" step="0.5" required /></label>
+          <fieldset class="workdays">
+            <legend>Work days</legend>
+            <label><input type="checkbox" name="workdays" value="1" /> Mon</label>
+            <label><input type="checkbox" name="workdays" value="2" /> Tue</label>
+            <label><input type="checkbox" name="workdays" value="3" /> Wed</label>
+            <label><input type="checkbox" name="workdays" value="4" /> Thu</label>
+            <label><input type="checkbox" name="workdays" value="5" /> Fri</label>
+            <label><input type="checkbox" name="workdays" value="6" /> Sat</label>
+            <label><input type="checkbox" name="workdays" value="0" /> Sun</label>
+          </fieldset>
+          <label class="inline"><input name="showNavigator" type="checkbox" /> Show the stack navigator on pull request pages</label>
+          <div class="form-actions">
+            <button type="submit" class="button button-primary">Save</button>
+            <span id="saved" class="muted" role="status"></span>
+          </div>
+        </form>
+        <datalist id="time-zones"></datalist>
+      </section>
+    </main>
+    <script src="../src/shared/work-hours.js"></script>
+    <script src="../src/shared/review-status.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

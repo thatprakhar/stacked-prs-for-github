@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Promo tile</title>
+    <style>
+      html, body { margin: 0; width: 440px; height: 280px; overflow: hidden; }
+      body { display: flex; flex-direction: column; justify-content: center; gap: 14px; box-sizing: border-box; padding: 0 36px; background: #0d1117; color: #f0f6fc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif; }
+      .name { display: flex; align-items: center; gap: 12px; font-size: 28px; font-weight: 600; letter-spacing: -0.01em; }
+      .tagline { color: #9198a1; font-size: 15px; line-height: 1.45; }
+      .bar { display: flex; gap: 3px; }
+      .bar span { width: 26px; height: 7px; border-radius: 2px; }
+      .pills { display: flex; gap: 6px; }
+      .pill { padding: 1px 9px; border-radius: 2em; font-size: 12px; font-weight: 500; }
+    </style>
+  </head>
+  <body>
+    <div class="name"><img src="../icons/icon-48.png" width="40" height="40" alt="" />Stacked PRs</div>
+    <div class="tagline">See stacked pull requests as stacks on GitHub,<br />and how long each one has waited for review.</div>
+    <div class="bar">
+      <span style="background:#8957e5"></span><span style="background:#3fb950"></span><span style="background:#f85149"></span><span style="background:#d29922"></span><span style="background:#3fb95066"></span><span style="background:#656c7633"></span>
+    </div>
+    <div class="pills">
+      <span class="pill" style="background:#f8514926;color:#ff7b72">7.3h · SLA breached</span>
+      <span class="pill" style="background:#bb800926;color:#d29922">3.0h · At risk</span>
+      <span class="pill" style="background:#2ea04326;color:#3fb950">0.8h · On track</span>
+    </div>
+  </body>
+</html>

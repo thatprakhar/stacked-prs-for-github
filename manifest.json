@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "Stacked PRs for GitHub",
+  "short_name": "Stacked PRs",
+  "version": "1.0.0",
+  "description": "See stacked pull requests as stacks on GitHub, with each one’s author, review wait in work hours and an SLA pill.",
+  "minimum_chrome_version": "111",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://api.github.com/*",
+    "https://*.ghe.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "options_page": "options/options.html",
+  "action": {
+    "default_title": "Stacked PRs for GitHub settings",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://github.com/*",
+        "https://*.ghe.com/*"
+      ],
+      "js": [
+        "src/shared/work-hours.js",
+        "src/shared/review-status.js",
+        "src/shared/stacks.js",
+        "src/content/octicons.js",
+        "src/content/api.js",
+        "src/content/render.js",
+        "src/content/list-view.js",
+        "src/content/stack-navigator.js",
+        "src/content/main.js"
+      ],
+      "css": [
+        "src/content/styles.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
