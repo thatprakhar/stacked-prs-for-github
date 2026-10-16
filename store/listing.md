@@ -31,7 +31,7 @@ On a pull request page
 
 Review time that is fair
 • Counted in work hours only (your days, hours and time zone), from when the pull request was marked ready for review.
-• Stops at the first review by a person, or at a bot's approval (shown as Bot approved; you can turn this off). Other bot reviews and the author's own replies do not count.
+• Stops at the first review by a person, or at a bot's approval (shown as Bot approved). Other bot reviews and the author's own replies do not count.
 
 Works with
 • github.com and GitHub Enterprise Cloud (*.ghe.com).

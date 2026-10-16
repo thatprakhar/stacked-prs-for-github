@@ -1,6 +1,6 @@
 (function (root) {
   const { octicon, api, reviewStatus, groupPullRequests } = root.GitHubStacks;
-  const { element, statusPill, pullRequestRow, separator, isUnread, formatHours, LEVEL_TEXT, LEVEL_TONE } = root.GitHubStacks.render;
+  const { element, statusPill, pullRequestRow, separator, isUnread, LEVEL_TEXT, LEVEL_TONE } = root.GitHubStacks.render;
 
   const REFRESH_MILLISECONDS = 3 * 60 * 1000;
   const REFRESH_ON_RETURN_MILLISECONDS = 30 * 1000;
@@ -319,13 +319,8 @@
       const segments = stack.members.map((member) => {
         const pullRequest = listed.get(member.number);
         const status = pullRequest ? statuses.get(member.number) : null;
-        const botApproved = Boolean(status && status.kind === 'awaiting' && status.botApprovals.length > 0);
-        const tone = !status ? `kind-${member.state === 'open' ? 'unlisted' : member.state}` : botApproved ? 'kind-bot_approved' : status.kind === 'awaiting' ? `level-${status.level}` : `kind-${status.kind}`;
-        const note = botApproved
-          ? ` (${status.botApprovals.join(', ')} approved; waiting ${formatHours(status.hours)} for a person)`
-          : status && status.kind === 'bot_approved'
-            ? ` (approved by ${status.botApprovals.join(', ')})`
-            : '';
+        const tone = !status ? `kind-${member.state === 'open' ? 'unlisted' : member.state}` : status.kind === 'awaiting' ? `level-${status.level}` : `kind-${status.kind}`;
+        const note = status && status.kind === 'bot_approved' ? ` (approved by ${status.botApprovals.join(', ')})` : '';
         const description = pullRequest ? `${member.position}. #${member.number} ${pullRequest.title}${note}` : `${member.position}. #${member.number} (${member.state === 'open' ? 'not in this list' : member.state})`;
         return element('a', {
           className: `ghs-segment ghs-segment--${tone}${pullRequest && isUnread(pullRequest) ? ' is-unread' : ''}`,
