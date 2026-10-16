@@ -9,6 +9,35 @@
     reviews(first: 50) { nodes { state author { login __typename } } }
   `;
 
+  const ACTOR = 'login avatarUrl(size: 40)';
+  const TIMELINE_QUERY = `
+    query ($owner: String!, $name: String!, $number: Int!, $since: DateTime) {
+      viewer { login }
+      repository(owner: $owner, name: $name) {
+        pullRequest(number: $number) {
+          timelineItems(since: $since, last: 30, itemTypes: [PULL_REQUEST_COMMIT, ISSUE_COMMENT, PULL_REQUEST_REVIEW, HEAD_REF_FORCE_PUSHED_EVENT, BASE_REF_CHANGED_EVENT, REVIEW_REQUESTED_EVENT, READY_FOR_REVIEW_EVENT, CONVERT_TO_DRAFT_EVENT, MERGED_EVENT, CLOSED_EVENT, REOPENED_EVENT, LABELED_EVENT, RENAMED_TITLE_EVENT]) {
+            nodes {
+              __typename
+              ... on PullRequestCommit { commit { messageHeadline committedDate author { name user { ${ACTOR} } } } }
+              ... on IssueComment { createdAt author { ${ACTOR} } bodyText }
+              ... on PullRequestReview { submittedAt state author { ${ACTOR} } bodyText }
+              ... on HeadRefForcePushedEvent { createdAt actor { ${ACTOR} } }
+              ... on BaseRefChangedEvent { createdAt actor { ${ACTOR} } currentRefName }
+              ... on ReviewRequestedEvent { createdAt actor { ${ACTOR} } requestedReviewer { ... on User { login } ... on Team { name } ... on Bot { login } } }
+              ... on ReadyForReviewEvent { createdAt actor { ${ACTOR} } }
+              ... on ConvertToDraftEvent { createdAt actor { ${ACTOR} } }
+              ... on MergedEvent { createdAt actor { ${ACTOR} } }
+              ... on ClosedEvent { createdAt actor { ${ACTOR} } }
+              ... on ReopenedEvent { createdAt actor { ${ACTOR} } }
+              ... on LabeledEvent { createdAt actor { ${ACTOR} } label { name } }
+              ... on RenamedTitleEvent { createdAt actor { ${ACTOR} } currentTitle }
+            }
+          }
+        }
+      }
+    }
+  `;
+
   const SEARCH_QUERY = `
     query ($search: String!, $after: String) {
       search(query: $search, type: ISSUE, first: 50, after: $after) {
@@ -127,6 +156,42 @@
     return new Map(Object.values(data.repository).filter(Boolean).map((pullRequest) => [pullRequest.number, pullRequest]));
   }
 
+  const LAST_READ_MILLISECONDS = 60 * 1000;
+  const lastReadCache = new Map();
+
+  async function fetchLastReadTimes(owner, repository) {
+    const times = new Map();
+    try {
+      for (let page = 1; page <= 3; page += 1) {
+        const threads = await send({ type: 'rest', path: `/repos/${owner}/${repository}/notifications?all=true&per_page=100&page=${page}` });
+        for (const thread of threads) {
+          const match = thread.subject && thread.subject.type === 'PullRequest' && /\/pulls\/(\d+)$/.exec(thread.subject.url || '');
+          if (match && !times.has(Number(match[1]))) times.set(Number(match[1]), thread.last_read_at);
+        }
+        if (threads.length < 100) break;
+      }
+    } catch (error) {
+      if (error.code === CONTEXT_INVALIDATED) throw error;
+    }
+    return times;
+  }
+
+  async function lastReadAt(owner, repository, number) {
+    const key = `${owner}/${repository}`;
+    const cached = lastReadCache.get(key);
+    if (!cached || Date.now() - cached.fetchedAt > LAST_READ_MILLISECONDS) {
+      lastReadCache.set(key, { fetchedAt: Date.now(), times: fetchLastReadTimes(owner, repository) });
+    }
+    const times = await lastReadCache.get(key).times;
+    return times.get(number) || null;
+  }
+
+  async function activity(owner, repository, number) {
+    const since = await lastReadAt(owner, repository, number);
+    const data = await send({ type: 'graphql', query: TIMELINE_QUERY, variables: { owner, name: repository, number, since } });
+    return { since, viewer: data.viewer.login, nodes: data.repository.pullRequest.timelineItems.nodes };
+  }
+
   async function settings() {
     const { settings: saved = {} } = await callExtension(() => chrome.storage.sync.get('settings'));
     return { ...root.GitHubStacks.DEFAULT_SETTINGS, ...saved };
@@ -137,6 +202,6 @@
   }
 
   root.GitHubStacks = Object.assign(root.GitHubStacks || {}, {
-    api: { searchPullRequests, listStacks, stackForPullRequest, pullRequestsByNumber, settings, openOptions, extensionAlive, readLocal, writeLocal, CONTEXT_INVALIDATED },
+    api: { searchPullRequests, listStacks, stackForPullRequest, pullRequestsByNumber, activity, settings, openOptions, extensionAlive, readLocal, writeLocal, CONTEXT_INVALIDATED },
   });
 })(globalThis);

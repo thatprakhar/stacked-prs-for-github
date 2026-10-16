@@ -49,7 +49,8 @@
     <script src="demo.js"></script>
     <script>
       // ?demo uses dev/demo.js; otherwise ?host=&repo= reads live data through dev/server.js.
-      // ?q= search, ?pr= pull request page, ?expand=stack-208,stack-215, ?theme=dark.
+      // ?q= search, ?pr= pull request page, ?expand=stack-208,stack-215, ?theme=dark,
+      // ?hover=<selector> hovers that element after loading (to show the what-changed popover).
       const parameters = new URLSearchParams(location.search);
       const demo = parameters.has('demo');
       const host = demo ? 'github.com' : parameters.get('host') || 'github.com';
@@ -111,6 +112,14 @@
         },
         storage: { local: area, sync: area, onChanged: { addListener() {} } },
       };
+      if (parameters.get('hover')) {
+        const hoverWhenReady = (attempts) => {
+          const target = document.querySelector(parameters.get('hover'));
+          if (target) target.dispatchEvent(new MouseEvent('mouseenter'));
+          else if (attempts > 0) setTimeout(() => hoverWhenReady(attempts - 1), 200);
+        };
+        hoverWhenReady(50);
+      }
       globalThis.GitHubStacks = {
         testLocation: { host, pathname: number ? `/${owner}/${repository}/pull/${number}` : `/${owner}/${repository}/pulls` },
       };
@@ -118,9 +127,11 @@
     <script src="../src/shared/work-hours.js"></script>
     <script src="../src/shared/review-status.js"></script>
     <script src="../src/shared/stacks.js"></script>
+    <script src="../src/shared/activity.js"></script>
     <script src="../src/content/octicons.js"></script>
     <script src="../src/content/api.js"></script>
     <script src="../src/content/render.js"></script>
+    <script src="../src/content/activity-popover.js"></script>
     <script src="../src/content/list-view.js"></script>
     <script src="../src/content/stack-navigator.js"></script>
     <script src="../src/content/main.js"></script>

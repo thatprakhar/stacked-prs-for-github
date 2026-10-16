@@ -1,6 +1,6 @@
 # Privacy policy: Stacked PRs for GitHub
 
-Last updated: 15 October 2026
+Last updated: 16 October 2026
 
 Stacked PRs for GitHub is a browser extension that shows pull requests on github.com and GitHub Enterprise Cloud
 (`*.ghe.com`) grouped into stacks, with how long each has waited for review.
@@ -10,8 +10,9 @@ Stacked PRs for GitHub is a browser extension that shows pull requests on github
 - **Your GitHub access token.** You paste it on the extension's settings page. It is saved in your browser's local
   extension storage (`chrome.storage.local`) on your device. It is sent only to the GitHub API of the host it belongs to
   (`api.github.com` or `api.<your-company>.ghe.com`), as the `Authorization` header of the extension's requests.
-- **Pull request data.** To draw the page, the extension reads pull requests, reviews, checks and stacks from the GitHub
-  API with your token. This data is kept in memory while the page is open and is not stored or sent anywhere else.
+- **Pull request data.** To draw the page, the extension reads pull requests, reviews, checks, stacks and each pull
+  request's timeline from the GitHub API with your token. To show what changed since you last read a pull request, it
+  reads when you last read its notification thread; it never marks anything read or changes your notifications. This data is kept in memory while the page is open and is not stored or sent anywhere else.
 - **Settings.** Your SLA, work hours and time zone are saved with `chrome.storage.sync`, which your browser may sync to
   your other devices through your browser account. Whether stacks are expanded is saved in local extension storage.
 

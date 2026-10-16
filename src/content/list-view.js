@@ -1,6 +1,6 @@
 (function (root) {
   const { octicon, api, reviewStatus, groupPullRequests } = root.GitHubStacks;
-  const { element, statusPill, pullRequestRow, separator, isUnread, LEVEL_TEXT, LEVEL_TONE } = root.GitHubStacks.render;
+  const { element, statusPill, stateIcon, pullRequestState, pullRequestRow, separator, isUnread, unreadMarker, LEVEL_TEXT, LEVEL_TONE } = root.GitHubStacks.render;
 
   const REFRESH_MILLISECONDS = 3 * 60 * 1000;
   const REFRESH_ON_RETURN_MILLISECONDS = 30 * 1000;
@@ -313,7 +313,8 @@
       const oldest = awaiting.reduce((worst, status) => (!worst || status.hours > worst.hours ? status : worst), null);
       const merged = stack.members.filter((member) => member.state === 'merged').length;
       const authors = [...new Set(entry.rows.map((row) => (row.pullRequest.author ? row.pullRequest.author.login : 'ghost')))];
-      const unread = entry.rows.filter((row) => isUnread(row.pullRequest)).length;
+      const unreadRows = entry.rows.filter((row) => isUnread(row.pullRequest));
+      const unread = unreadRows.length;
       const { owner, repository } = this.route;
 
       const segments = stack.members.map((member) => {
@@ -333,7 +334,21 @@
         { className: 'ghs-chevron', attributes: { type: 'button', 'aria-expanded': String(expanded), 'aria-label': expanded ? 'Collapse stack' : 'Expand stack' } },
         octicon('chevron-right'),
       );
+      const unreadTitle = `${unread} updated since you last viewed ${unread === 1 ? 'it' : 'them'}`;
+      const unreadItems = () =>
+        unreadRows.map((row) =>
+          element('li', { className: 'ghs-popover-item' }, [
+            element('span', { className: 'ghs-popover-icon' }, stateIcon(pullRequestState(row.pullRequest))),
+            element('div', { className: 'ghs-popover-text' }, [
+              element('a', { className: 'ghs-popover-link', attributes: { href: row.pullRequest.url } }, [element('span', { className: 'ghs-popover-time', text: `${row.position}. #${row.pullRequest.number} ` }), row.pullRequest.title]),
+            ]),
+          ]),
+        );
+      const unreadBar = unread > 0 ? unreadMarker('ghs-unread-bar', `${unreadTitle}. Show which`) : null;
+      const unreadCount = unread > 0 ? element('span', { className: 'ghs-meta-unread', text: `${unread} updated`, attributes: { tabindex: '0', role: 'button', 'aria-haspopup': 'dialog' } }) : null;
+      for (const anchor of [unreadBar, unreadCount].filter(Boolean)) root.GitHubStacks.activityPopover.bindList(anchor, unreadTitle, unreadItems());
       const header = element('div', { className: `ghs-stack-header${unread > 0 ? ' is-unread' : ''}` }, [
+        unreadBar,
         chevron,
         element('div', { className: 'ghs-stack-icon' }, octicon('stack')),
         element('div', { className: 'ghs-stack-main' }, [
@@ -346,7 +361,7 @@
             separator(),
             `${awaiting.length} awaiting review`,
             unread > 0 ? separator() : null,
-            unread > 0 ? element('span', { className: 'ghs-meta-unread', text: `${unread} updated`, attributes: { title: `${unread} updated since you last viewed them` } }) : null,
+            unreadCount,
             merged > 0 ? separator() : null,
             merged > 0 ? `${merged} merged` : null,
             separator(),

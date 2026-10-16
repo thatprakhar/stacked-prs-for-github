@@ -500,14 +500,49 @@
 
 /* Unread: updated since the viewer last opened it, like GitHub's own list */
 
-.ghs-row.is-unread,
-.ghs-stack-header.is-unread {
-  box-shadow: inset 3px 0 0 var(--borderColor-accent-emphasis, #0969da);
+.ghs-row,
+.ghs-stack-header {
+  position: relative;
+}
+
+.ghs-unread-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  width: 12px;
+  cursor: pointer;
+}
+
+.ghs-unread-bar::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 4px;
+  background: var(--borderColor-accent-emphasis, #0969da);
+  content: '';
+  transition: width 80ms ease;
+}
+
+.ghs-unread-bar:hover::before,
+.ghs-unread-bar:focus-visible::before {
+  width: 6px;
+}
+
+.ghs-unread-bar:focus-visible {
+  outline: none;
 }
 
 .ghs-meta-unread {
   color: var(--ghs-fg-accent);
   font-weight: 500;
+  cursor: pointer;
+}
+
+.ghs-meta-unread:hover {
+  text-decoration: underline;
 }
 
 .ghs-segment.is-unread {
@@ -520,6 +555,126 @@
   height: 8px;
   border-radius: 50%;
   background: var(--borderColor-accent-emphasis, #0969da);
+  box-shadow: 0 0 0 4px transparent;
+  cursor: pointer;
+}
+
+.ghs-unread-dot:hover,
+.ghs-unread-dot:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ghs-bg-accent);
+}
+
+/* What changed popover */
+
+.ghs-popover {
+  --ghs-fg: var(--fgColor-default, #1f2328);
+  --ghs-fg-muted: var(--fgColor-muted, #59636e);
+  --ghs-fg-accent: var(--fgColor-accent, #0969da);
+  --ghs-bg-accent: var(--bgColor-accent-muted, #ddf4ff);
+  --ghs-border: var(--borderColor-default, #d1d9e0);
+  --ghs-border-muted: var(--borderColor-muted, #d1d9e0b3);
+  position: fixed;
+  z-index: 100;
+  width: 380px;
+  max-width: calc(100vw - 16px);
+  max-height: min(60vh, 480px);
+  overflow-y: auto;
+  border: 1px solid var(--ghs-border);
+  border-radius: var(--borderRadius-large, 12px);
+  background: var(--overlay-bgColor, var(--bgColor-default, #ffffff));
+  box-shadow: var(--shadow-floating-medium, 0 0 0 1px #d1d9e080, 0 8px 16px -4px #25292e14, 0 4px 32px -4px #25292e14, 0 24px 48px -12px #25292e14, 0 48px 96px -24px #25292e14);
+  color: var(--ghs-fg);
+  font-family: var(--fontStack-system, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ghs-popover-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ghs-border-muted);
+  color: var(--ghs-fg-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ghs-popover-list {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+}
+
+.ghs-popover-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 7px 14px;
+}
+
+.ghs-popover-icon {
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  width: 20px;
+  color: var(--ghs-fg-muted);
+}
+
+.ghs-popover-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ghs-popover-time {
+  color: var(--ghs-fg-muted);
+}
+
+.ghs-popover-detail {
+  display: -webkit-box;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--ghs-fg-muted);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.ghs-popover-link {
+  color: var(--ghs-fg);
+  text-decoration: none;
+}
+
+.ghs-popover-link:hover {
+  color: var(--ghs-fg-accent);
+}
+
+.ghs-popover-empty,
+.ghs-popover-loading {
+  padding: 14px;
+  color: var(--ghs-fg-muted);
+}
+
+.ghs-popover-footer {
+  display: block;
+  padding: 8px 14px;
+  border-top: 1px solid var(--ghs-border-muted);
+  color: var(--ghs-fg-accent);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.ghs-popover-footer:hover {
+  text-decoration: underline;
+}
+
+.ghs-popover .ghs-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ghs-border);
+  border-top-color: var(--ghs-fg-accent);
+  border-radius: 50%;
+  vertical-align: -2px;
+  animation: ghs-spin 1s linear infinite;
 }
 
 .ghs-visually-hidden {

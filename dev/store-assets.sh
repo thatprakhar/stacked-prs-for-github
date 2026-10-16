@@ -32,7 +32,7 @@ PY
 
 shot() {
   "$CHROME" --headless=new --disable-gpu --hide-scrollbars --user-data-dir="$PROFILE" --force-device-scale-factor=1 \
-    --window-size="$2" --virtual-time-budget=8000 --screenshot="$1" "http://localhost:$PORT/$3" >/dev/null 2>&1
+    --window-size="$2" --virtual-time-budget="${4:-8000}" --screenshot="$1" "http://localhost:$PORT/$3" >/dev/null 2>&1
 }
 
 PREVIEW="dev/preview.html?demo&q=is%3Apr+is%3Aopen"
@@ -40,5 +40,6 @@ shot store/screenshots/1-stacked-list.png 1280,800 "$PREVIEW&expand=stack-208"
 shot store/screenshots/2-dark-overview.png 1280,800 "$PREVIEW&theme=dark"
 shot store/screenshots/3-stack-navigator.png 1280,800 "dev/preview.html?demo&pr=203"
 shot store/screenshots/4-settings.png 1280,800 "$OPTIONS_PREVIEW"
+shot store/screenshots/5-what-changed.png 1280,800 "$PREVIEW&expand=stack-208&hover=%5Bdata-number%3D%22202%22%5D%20.ghs-unread-bar" 30000
 shot store/promo-tile.png 440,280 "store/promo-tile.html"
 ls -1 store/screenshots store/promo-tile.png

@@ -7,7 +7,8 @@ A Chrome extension that makes stacked pull requests easy to read on GitHub and G
   state, and green once a person or a bot such as CodeRabbit approved it; click a segment to open it) and the longest
   wait in the stack. Every row shows the author's avatar, checks,
   comments and a review SLA pill. As in GitHub's own list, a blue bar marks pull requests updated since you last
-  viewed them, and a stack's header says how many of its pull requests were updated, so a collapsed stack shows it too.
+  viewed them; hover it to see what changed (commits, pushes, reviews, comments) since you last read the pull request.
+  A stack's header says how many of its pull requests were updated, and hovering that lists them.
   The summary pills (SLA breached, at risk, on track) filter the list. Use the list icon to switch back to GitHub's own
   list.
 - **Pull request page**: a floating stack navigator showing the base branch, every pull request in the stack, where you

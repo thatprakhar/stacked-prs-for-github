@@ -88,9 +88,41 @@
     { number: 215, open: true, base: { ref: 'main' }, pull_requests: [210, 211, 213].map(member) },
   ];
 
+  const LAST_READ = {
+    202: '2026-10-15T11:30:00-04:00',
+    212: '2026-10-15T10:15:00-04:00',
+    213: '2026-10-15T14:00:00-04:00',
+  };
+
+  function actor(login) {
+    return { login, avatarUrl: person(login).avatarUrl };
+  }
+
+  const ACTIVITY = {
+    202: [
+      { __typename: 'PullRequestReview', state: 'CHANGES_REQUESTED', submittedAt: '2026-10-15T12:10:00-04:00', author: actor('devon-reyes'), bodyText: 'Zones 7 and 8 share a rate table now, so the weight bands double count. Can we read the bands from the zone instead?' },
+      { __typename: 'PullRequestCommit', commit: { messageHeadline: 'Read weight bands from the shipping zone', committedDate: '2026-10-15T14:40:00-04:00', author: { user: actor('mira-chen') } } },
+      { __typename: 'PullRequestCommit', commit: { messageHeadline: 'Cover zones 7 and 8 in the rate tests', committedDate: '2026-10-15T14:52:00-04:00', author: { user: actor('mira-chen') } } },
+      { __typename: 'IssueComment', createdAt: '2026-10-15T15:05:00-04:00', author: actor('mira-chen'), bodyText: 'Done: bands now come from the zone, and the tests cover the shared table.' },
+    ],
+    212: [
+      { __typename: 'PullRequestCommit', commit: { messageHeadline: 'Match the menu border to the dark theme', committedDate: '2026-10-15T11:20:00-04:00', author: { user: actor('lee-park') } } },
+      { __typename: 'ReviewRequestedEvent', createdAt: '2026-10-15T11:25:00-04:00', actor: actor('lee-park'), requestedReviewer: { login: 'priya-nair' } },
+    ],
+    213: [{ __typename: 'PullRequestReview', state: 'APPROVED', submittedAt: '2026-10-15T14:20:00-04:00', author: actor('coderabbitai'), bodyText: 'Looks good: highlights escape HTML before matching.' }],
+  };
+
   window.GitHubStacksDemo = {
     now: NOW,
     answer(message) {
+      if (message.type === 'rest' && message.path.includes('/notifications')) {
+        return Object.entries(LAST_READ).map(([number, lastRead]) => ({ subject: { type: 'PullRequest', url: `https://api.github.com/repos/acme/storefront/pulls/${number}` }, last_read_at: lastRead }));
+      }
+      if (message.type === 'graphql' && message.query.includes('timelineItems(since')) {
+        const since = message.variables.since ? Date.parse(message.variables.since) : 0;
+        const nodes = (ACTIVITY[message.variables.number] || []).filter((node) => Date.parse(node.submittedAt || node.createdAt || node.commit.committedDate) >= since);
+        return { viewer: { login: 'priya-nair' }, repository: { pullRequest: { timelineItems: { nodes } } } };
+      }
       if (message.type === 'rest') {
         const match = message.path.match(/pull_request=(\d+)/);
         if (match) return STACKS.filter((stack) => stack.pull_requests.some((entry) => entry.number === Number(match[1])));

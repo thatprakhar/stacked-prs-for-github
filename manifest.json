@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Stacked PRs for GitHub",
   "short_name": "Stacked PRs",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "See stacked pull requests as stacks on GitHub, with each one’s author, review wait in work hours and an SLA pill.",
   "minimum_chrome_version": "111",
   "icons": {
@@ -41,9 +41,11 @@
         "src/shared/work-hours.js",
         "src/shared/review-status.js",
         "src/shared/stacks.js",
+        "src/shared/activity.js",
         "src/content/octicons.js",
         "src/content/api.js",
         "src/content/render.js",
+        "src/content/activity-popover.js",
         "src/content/list-view.js",
         "src/content/stack-navigator.js",
         "src/content/main.js"

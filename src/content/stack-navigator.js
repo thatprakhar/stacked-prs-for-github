@@ -1,6 +1,6 @@
 (function (root) {
   const { octicon, api, reviewStatus } = root.GitHubStacks;
-  const { element, statusPill, stateIcon, pullRequestState, avatar, isUnread, UNREAD_TEXT } = root.GitHubStacks.render;
+  const { element, statusPill, stateIcon, pullRequestState, avatar, isUnread, pullRequestUnreadMarker } = root.GitHubStacks.render;
 
   const MEMBER_STATE_ICON = { merged: 'merged', closed: 'closed', draft: 'draft', open: 'open' };
 
@@ -123,7 +123,7 @@
               element('span', { className: 'ghs-navigator-number', text: `#${member.number}` }),
               element('span', { className: 'ghs-navigator-text', text: pullRequest ? pullRequest.title : '' }),
             ]),
-            pullRequest && !current && isUnread(pullRequest) ? element('span', { className: 'ghs-unread-dot', attributes: { title: UNREAD_TEXT, role: 'img', 'aria-label': UNREAD_TEXT } }) : null,
+            pullRequest && !current && isUnread(pullRequest) ? pullRequestUnreadMarker(pullRequest, 'ghs-unread-dot') : null,
             pullRequest ? statusPill(reviewStatus(pullRequest, now, settings)) : null,
           ]);
         }),

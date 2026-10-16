@@ -21,7 +21,8 @@ On a repository's pull request list
 • Each stack is one row you can expand, with its pull requests in order from the base branch up.
 • A progress bar shows every pull request in the stack: merged, approved (by a person or a bot such as CodeRabbit), waiting or draft. Click a segment to open it.
 • Every pull request shows its author, checks, comments and how long it has waited for its first human review.
-• A blue bar marks pull requests updated since you last viewed them, as in GitHub's own list. A collapsed stack says how many of its pull requests were updated.
+• A blue bar marks pull requests updated since you last viewed them, as in GitHub's own list. Hover it to see what changed: new commits, pushes, reviews and comments.
+• A collapsed stack says how many of its pull requests were updated; hover to see which.
 • An SLA pill marks each one as on track, at risk or breached. Click the counts at the top to filter.
 • Switch back to GitHub's own list at any time.
 
@@ -47,7 +48,7 @@ Private by design
 | Field | File |
 |---|---|
 | Store icon (128×128) | `icons/icon-128.png` |
-| Screenshots (1280×800) | `store/screenshots/1-stacked-list.png`, `2-dark-overview.png`, `3-stack-navigator.png`, `4-settings.png` |
+| Screenshots (1280×800) | `store/screenshots/1-stacked-list.png`, `5-what-changed.png`, `2-dark-overview.png`, `3-stack-navigator.png`, `4-settings.png` |
 | Small promo tile (440×280) | `store/promo-tile.png` |
 
 The screenshots use the fictional repository in `dev/demo.js`; no real pull requests appear in them.
