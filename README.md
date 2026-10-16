@@ -77,9 +77,9 @@ side by side.
 ## Review SLA
 
 The clock starts at the latest *ready for review* event, or when the pull request was opened if it was never a draft,
-and counts only work hours (default Mon–Fri 9:00–18:00 in the browser's time zone). It stops at the first review by a person:
-bots (for example CodeRabbit) and the author replying to comments do not count. Defaults: SLA 6 hours, at risk after 3.
-All of this is editable in the settings page.
+and counts only work hours (default Mon–Fri 9:00–18:00 in the browser's time zone). It stops at the first review by a person,
+or when a bot such as CodeRabbit approves. Other bot reviews and the author replying to comments do not count. Defaults:
+SLA 6 hours, at risk after 3. All of this is editable in the settings page, including whether a bot's approval counts.
 
 | Pill | Meaning |
 |---|---|
@@ -87,7 +87,8 @@ All of this is editable in the settings page.
 | `4.1h · At risk` | Waited at least the at-risk threshold |
 | `1.0h · On track` | Below the at-risk threshold |
 | Approved, Changes requested, Reviewed | A person has reviewed it; the clock has stopped |
-| `✓ coderabbitai approved` (beside the branches) | A bot approved it. Its progress-bar segment turns green, but the clock keeps running until a person reviews |
+| Bot approved | A bot approved it and no person has reviewed it yet; the clock has stopped |
+| `✓ coderabbitai approved` (beside the branches) | Only with "Count a bot's approval as a review" turned off: a bot approved it, its progress-bar segment is green, and the clock keeps running until a person reviews |
 | Draft, Merged, Closed | Not on the clock |
 
 ## Publish to the Chrome Web Store

@@ -9,6 +9,7 @@
     workdayEnd: 18,
     workdays: [1, 2, 3, 4, 5],
     showNavigator: true,
+    botApprovalCountsAsReview: true,
   };
 
   function isBot(actor) {
@@ -59,8 +60,10 @@
     if (pullRequest.isDraft) return { kind: 'draft' };
     const reviewed = humanReviewState(pullRequest);
     if (reviewed) return { kind: reviewed };
+    const approvingBots = botApprovals(pullRequest);
+    if (approvingBots.length > 0 && settings.botApprovalCountsAsReview) return { kind: 'bot_approved', botApprovals: approvingBots };
     const hours = workHours(readyForReviewAt(pullRequest), now, settings);
-    return { kind: 'awaiting', hours, level: slaLevel(hours, settings), botApprovals: botApprovals(pullRequest) };
+    return { kind: 'awaiting', hours, level: slaLevel(hours, settings), botApprovals: approvingBots };
   }
 
   const api = { DEFAULT_SETTINGS, reviewStatus, humanReviewState, botApprovals, readyForReviewAt, slaLevel };

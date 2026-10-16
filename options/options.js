@@ -103,6 +103,7 @@ async function renderSettings() {
   for (const name of ['slaHours', 'atRiskHours', 'timeZone', 'workdayStart', 'workdayEnd']) settingsForm.elements[name].value = settings[name];
   for (const box of settingsForm.querySelectorAll('input[name="workdays"]')) box.checked = settings.workdays.includes(Number(box.value));
   settingsForm.elements.showNavigator.checked = settings.showNavigator;
+  settingsForm.elements.botApprovalCountsAsReview.checked = settings.botApprovalCountsAsReview;
 }
 
 settingsForm.addEventListener('submit', async (event) => {
@@ -124,6 +125,7 @@ settingsForm.addEventListener('submit', async (event) => {
     workdayEnd: Number(elements.workdayEnd.value),
     workdays: [...settingsForm.querySelectorAll('input[name="workdays"]:checked')].map((box) => Number(box.value)),
     showNavigator: elements.showNavigator.checked,
+    botApprovalCountsAsReview: elements.botApprovalCountsAsReview.checked,
   };
   if (settings.workdayEnd <= settings.workdayStart) {
     saved.textContent = 'The work day must end after it starts';

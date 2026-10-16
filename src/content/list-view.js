@@ -321,7 +321,11 @@
         const status = pullRequest ? statuses.get(member.number) : null;
         const botApproved = Boolean(status && status.kind === 'awaiting' && status.botApprovals.length > 0);
         const tone = !status ? `kind-${member.state === 'open' ? 'unlisted' : member.state}` : botApproved ? 'kind-bot_approved' : status.kind === 'awaiting' ? `level-${status.level}` : `kind-${status.kind}`;
-        const note = botApproved ? ` (${status.botApprovals.join(', ')} approved; waiting ${formatHours(status.hours)} for a person)` : '';
+        const note = botApproved
+          ? ` (${status.botApprovals.join(', ')} approved; waiting ${formatHours(status.hours)} for a person)`
+          : status && status.kind === 'bot_approved'
+            ? ` (approved by ${status.botApprovals.join(', ')})`
+            : '';
         const description = pullRequest ? `${member.position}. #${member.number} ${pullRequest.title}${note}` : `${member.position}. #${member.number} (${member.state === 'open' ? 'not in this list' : member.state})`;
         return element('a', {
           className: `ghs-segment ghs-segment--${tone}${pullRequest && isUnread(pullRequest) ? ' is-unread' : ''}`,

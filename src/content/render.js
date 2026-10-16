@@ -20,6 +20,7 @@
 
   const STATUS_LABEL = {
     approved: { text: 'Approved', tone: 'success', icon: 'check' },
+    bot_approved: { text: 'Bot approved', tone: 'success', icon: 'check' },
     changes_requested: { text: 'Changes requested', tone: 'danger', icon: 'x' },
     reviewed: { text: 'Reviewed', tone: 'muted', icon: 'comment' },
     draft: { text: 'Draft', tone: 'muted', icon: null },
@@ -43,7 +44,8 @@
       );
     }
     const label = STATUS_LABEL[status.kind];
-    return element('span', { className: `ghs-status ghs-status--${label.tone}` }, [label.icon ? octicon(label.icon) : null, label.text]);
+    const title = status.kind === 'bot_approved' ? `Approved by ${status.botApprovals.join(', ')}; no person has reviewed it yet` : null;
+    return element('span', { className: `ghs-status ghs-status--${label.tone}`, attributes: { title } }, [label.icon ? octicon(label.icon) : null, label.text]);
   }
 
   function stateIcon(pullRequestState) {
