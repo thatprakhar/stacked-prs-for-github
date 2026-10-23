@@ -51,7 +51,8 @@
     <script>
       // ?demo uses dev/demo.js; otherwise ?host=&repo= reads live data through dev/server.js.
       // ?q= search (the extension keeps it in sync), ?pr= pull request page, ?expand=stack-208,stack-215, ?theme=dark,
-      // ?hover=<selector> hovers that element after loading (to show the what-changed popover).
+      // ?hover=<selector> hovers that element after loading (to show the what-changed popover),
+      // ?type=<text> types into the search after loading (to show its suggestions).
       const parameters = new URLSearchParams(location.search);
       const demo = parameters.has('demo');
       const host = demo ? 'github.com' : parameters.get('host') || 'github.com';
@@ -120,6 +121,18 @@
           else if (attempts > 0) setTimeout(() => hoverWhenReady(attempts - 1), 200);
         };
         hoverWhenReady(50);
+      }
+      if (parameters.get('type') !== null) {
+        // Types once the search shows, which is after the demo data loads.
+        const typeOnce = new MutationObserver(() => {
+          const input = document.querySelector('.ghs-search-input');
+          if (!input || !input.offsetParent) return;
+          typeOnce.disconnect();
+          input.focus();
+          input.value = parameters.get('type');
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        typeOnce.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
       }
       globalThis.GitHubStacks = {
         testLocation: { host, pathname: number ? `/${owner}/${repository}/pull/${number}` : `/${owner}/${repository}/pulls` },

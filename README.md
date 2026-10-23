@@ -64,6 +64,8 @@ keep stacks together: a stack with some matching pull requests shows those, says
 - **Sort**: newest, oldest, recently updated, most commented, or longest waiting for review.
 - **The SLA pills** above the list filter by SLA too.
 
+![Filter tokens and the typeahead suggesting fields and values](store/screenshots/6-search.png)
+
 Every token is GitHub search syntax underneath, so you can also type it (`label:checkout`, then Enter) with
 autocomplete for qualifiers and values. Hover a token to see its syntax.
 
