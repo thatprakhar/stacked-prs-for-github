@@ -37,7 +37,7 @@ shot() {
 
 PREVIEW="dev/preview.html?demo&q=is%3Apr+is%3Aopen"
 FILTERED="dev/preview.html?demo&q=is%3Aopen+label%3Acheckout+-is%3Adraft"
-shot store/screenshots/1-stacked-list.png 1280,800 "$FILTERED"
+shot store/screenshots/1-stacked-view.png 1280,800 "$FILTERED"
 shot store/screenshots/2-dark-overview.png 1280,800 "$PREVIEW&theme=dark"
 shot store/screenshots/3-stack-navigator.png 1280,800 "dev/preview.html?demo&pr=203"
 shot store/screenshots/4-settings.png 1280,800 "$OPTIONS_PREVIEW"

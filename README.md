@@ -19,7 +19,7 @@ A Chrome extension that makes stacked pull requests easy to read on GitHub and G
 Stacks come from GitHub's native stacks (`gh stack link`, REST `GET /repos/{owner}/{repo}/stacks`). Pull requests in
 no native stack are still grouped when one's base branch is another's head branch ("Stack · from branches").
 
-![The stacked view on a repository's pull request list](store/screenshots/1-stacked-list.png)
+![The stacked view on a repository's pull request list](store/screenshots/1-stacked-view.png)
 
 ## Install
 

@@ -49,7 +49,7 @@ Private by design
 | Field | File |
 |---|---|
 | Store icon (128×128) | `icons/icon-128.png` |
-| Screenshots (1280×800, five at most) | `store/screenshots/1-stacked-list.png`, `6-search.png`, `5-what-changed.png`, `2-dark-overview.png`, `3-stack-navigator.png` (`4-settings.png` is spare) |
+| Screenshots (1280×800, five at most) | `store/screenshots/1-stacked-view.png`, `6-search.png`, `5-what-changed.png`, `2-dark-overview.png`, `3-stack-navigator.png` (`4-settings.png` is spare) |
 | Small promo tile (440×280) | `store/promo-tile.png` |
 
 The screenshots use the fictional repository in `dev/demo.js`; no real pull requests appear in them.
