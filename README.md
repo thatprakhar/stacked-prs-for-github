@@ -2,6 +2,8 @@
 
 A Chrome extension that makes stacked pull requests easy to read on GitHub and GitHub Enterprise Cloud (`*.ghe.com`).
 
+**[Install it from the Chrome Web Store](https://chromewebstore.google.com/detail/stacked-prs-for-github/cigdnnplddadnmbelifgciagkgcoclbe)**
+
 - **Pull request list** (`/<owner>/<repo>/pulls`): replaces GitHub's flat list with a stacked view. Each stack is a
   collapsible row with its members in stack order, a progress bar (one segment per pull request, colored by review
   state, and green once a person or a bot such as CodeRabbit approved it; click a segment to open it) and the longest
@@ -22,29 +24,12 @@ no native stack are still grouped when one's base branch is another's head branc
 
 ## Install
 
-> The extension is in review on the Chrome Web Store. Until it is listed, install it from this repository as below.
+### 1. Add it to Chrome
 
-### 1. Get the code
+Open [Stacked PRs for GitHub on the Chrome Web Store](https://chromewebstore.google.com/detail/stacked-prs-for-github/cigdnnplddadnmbelifgciagkgcoclbe) and click **Add to Chrome**. Chrome keeps it up to date.
+Optional: pin it from the puzzle-piece menu in the toolbar. Its icon opens the settings page.
 
-With git, so you can update later with one command:
-
-```sh
-git clone https://github.com/thatprakhar/stacked-prs-for-github.git
-```
-
-Or without git: on this repository's page click **Code → Download ZIP** and unzip it. Keep the folder somewhere
-permanent; Chrome loads the extension from it every time it starts, so deleting or moving it removes the extension.
-
-### 2. Load it in Chrome
-
-1. Go to `chrome://extensions`.
-2. Turn on **Developer mode** (top right).
-3. Click **Load unpacked** and choose the folder from step 1 (the one that contains `manifest.json`).
-4. Optional: pin it from the puzzle-piece menu in the toolbar. Its icon opens the settings page.
-
-Chrome may show a banner about developer-mode extensions when it starts; that is expected for extensions loaded this way.
-
-### 3. Add a GitHub token
+### 2. Add a GitHub token
 
 1. Open any repository's **Pull requests** tab on github.com or your company's `*.ghe.com`.
 2. The extension shows **Add a token**. Click it: the settings page opens with that host already added.
@@ -60,20 +45,10 @@ Without the CLI, create a [fine-grained token](https://github.com/settings/perso
 to **Pull requests** and **Metadata** on the repositories you use. The token stays in your browser and is used only by the
 extension's background worker to call the GitHub API of that host; pages never see it.
 
-### Update
-
-```sh
-cd stacked-prs-for-github && git pull
-```
-
-Then click the reload icon on the extension's card in `chrome://extensions` and refresh GitHub. With the ZIP, download
-it again, replace the folder's contents and reload the same way.
-
 ### Uninstall
 
-Click **Remove** on the extension's card in `chrome://extensions`. This also deletes the saved tokens and settings.
-Once the Chrome Web Store version is available, remove this copy before installing that one, so the two do not run
-side by side.
+Right-click its toolbar icon and choose **Remove from Chrome**, or click **Remove** on its card in `chrome://extensions`.
+This also deletes the saved tokens and settings.
 
 ## Review SLA
 
@@ -90,40 +65,6 @@ SLA 6 hours, at risk after 3. All of this is editable in the settings page.
 | Approved, Changes requested, Reviewed | A person has reviewed it; the clock has stopped |
 | Bot approved | A bot such as CodeRabbit approved it and no person has reviewed it yet; the clock has stopped |
 | Draft, Merged, Closed | Not on the clock |
-
-## Publish to the Chrome Web Store
-
-1. Raise `version` in `manifest.json` (every upload needs a higher one), run `npm test`, then `npm run package`.
-2. In the [developer dashboard](https://chrome.google.com/webstore/devconsole), upload
-   `dist/stacked-prs-for-github-<version>.zip` (a new item the first time, **Package → Upload new package** after).
-3. Fill in the listing from [`store/listing.md`](store/listing.md) and submit for review. The privacy policy the
-   listing links to is [`store/privacy-policy.md`](store/privacy-policy.md) in this repository.
-
-## Develop
-
-No build step and no dependencies. Node 22 or later.
-
-| Purpose | Command |
-|---|---|
-| Unit tests (work hours, review state, stack grouping) | `npm test` |
-| Live preview of the content scripts without installing | `GITHUB_HOST=<host> node dev/server.js`, then open the printed URL with `?host=<host>&repo=<owner>/<repo>&q=<search>` for the list or `&pr=<number>` for the navigator. The server answers API calls with the GitHub CLI's token. |
-| Zip the extension for the Chrome Web Store (`dist/stacked-prs-for-github-<version>.zip`) | `npm run package` |
-| Render the store screenshots and promo tile from the fictional data in `dev/demo.js` | `dev/store-assets.sh` |
-| Regenerate the icons | `python3 dev/make-icons.py icons` |
-
-| Path | Holds |
-|---|---|
-| `manifest.json` | Manifest V3: content scripts on `github.com` and `*.ghe.com`, API host permissions |
-| `src/background.js` | Holds the token and makes every GitHub API call |
-| `src/shared/` | Pure logic shared with the tests: `work-hours.js`, `review-status.js`, `stacks.js` |
-| `src/content/` | Page code: API client, rendering, the list view, the PR page navigator, `main.js` (routing and re-mounting on GitHub's client-side navigation) and `styles.css` (Primer CSS variables, so light and dark themes follow GitHub) |
-| `options/` | Settings page: tokens per host (only `github.com` is listed until a `*.ghe.com` host is used or added), SLA and work hours |
-| `dev/` | Preview server and page, fictional demo data, store asset and icon scripts |
-| `store/` | Chrome Web Store listing text, privacy policy, screenshots and promo tile |
-
-The list view finds GitHub's own list by taking the nearest common ancestor of the links to pull requests in the page,
-hides it and inserts its own list before it, so it does not depend on GitHub's class names. It shows up to 200 pull
-requests matching the search box query (or the `q` URL parameter).
 
 ## License
 
