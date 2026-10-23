@@ -1,6 +1,7 @@
 (function (root) {
   const PULL_REQUEST_FIELDS = `
-    number title url isDraft isReadByViewer state createdAt updatedAt headRefName baseRefName reviewDecision
+    number title url isDraft isReadByViewer state createdAt updatedAt headRefName baseRefName reviewDecision isInMergeQueue
+    mergeQueueEntry { position state estimatedTimeToMerge mergeQueue { url } }
     author { login avatarUrl(size: 48) url __typename }
     assignees(first: 10) { nodes { login avatarUrl(size: 48) } }
     reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } ... on Bot { login } ... on Team { slug combinedSlug } } } }

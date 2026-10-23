@@ -724,6 +724,12 @@
       const awaiting = entry.rows.map((row) => statuses.get(row.pullRequest.number)).filter((status) => status.kind === 'awaiting');
       const oldest = awaiting.reduce((worst, status) => (!worst || status.hours > worst.hours ? status : worst), null);
       const merged = stack.members.filter((member) => member.state === 'merged').length;
+      const queued = entry.rows.filter((row) => row.pullRequest.isInMergeQueue).length;
+      // With nothing waiting for review, the member closest to merging speaks for the stack.
+      const nextInQueue = entry.rows
+        .map((row) => statuses.get(row.pullRequest.number))
+        .filter((status) => status.kind === 'queued')
+        .reduce((first, status) => (!first || (status.position || Infinity) < (first.position || Infinity) ? status : first), null);
       const authors = [...new Set(entry.rows.map((row) => (row.pullRequest.author ? row.pullRequest.author.login : 'ghost')))];
       const unreadRows = entry.rows.filter((row) => isUnread(row.pullRequest));
       const unread = unreadRows.length;
@@ -777,6 +783,8 @@
             `${awaiting.length} awaiting review`,
             unread > 0 ? separator() : null,
             unreadCount,
+            queued > 0 ? separator() : null,
+            queued > 0 ? element('span', { className: 'ghs-meta-queued' }, [octicon('git-merge-queue'), `${queued} queued`]) : null,
             merged > 0 ? separator() : null,
             merged > 0 ? `${merged} merged` : null,
             separator(),
@@ -787,7 +795,7 @@
           ]),
           element('div', { className: 'ghs-progress', attributes: { role: 'group', 'aria-label': 'Stack members, bottom to top' } }, segments),
         ]),
-        element('div', { className: 'ghs-stack-signals' }, oldest ? statusPill(oldest) : element('span', { className: 'ghs-status ghs-status--muted', text: 'Nothing waiting' })),
+        element('div', { className: 'ghs-stack-signals' }, oldest ? statusPill(oldest) : nextInQueue ? statusPill(nextInQueue) : element('span', { className: 'ghs-status ghs-status--muted', text: 'Nothing waiting' })),
       ]);
       header.addEventListener('click', (event) => {
         if (event.target.closest('a, [role="button"]')) return;

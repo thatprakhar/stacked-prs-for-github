@@ -24,9 +24,34 @@
     changes_requested: { text: 'Changes requested', tone: 'danger', icon: 'x' },
     reviewed: { text: 'Reviewed', tone: 'muted', icon: 'comment' },
     draft: { text: 'Draft', tone: 'muted', icon: null },
+    queued: { text: 'Queued', tone: 'attention', icon: 'git-merge-queue' },
     merged: { text: 'Merged', tone: 'done', icon: null },
     closed: { text: 'Closed', tone: 'muted', icon: null },
   };
+
+  const QUEUE_STATE_TEXT = {
+    QUEUED: 'Waiting its turn',
+    AWAITING_CHECKS: 'Waiting for checks',
+    MERGEABLE: 'Ready to merge',
+    UNMERGEABLE: 'Cannot be merged',
+    LOCKED: 'Locked',
+  };
+
+  function queuedPill(status) {
+    const minutes = status.secondsToMerge === null ? null : Math.max(1, Math.round(status.secondsToMerge / 60));
+    const title = [
+      status.position ? `Number ${status.position} in the merge queue` : 'In the merge queue',
+      QUEUE_STATE_TEXT[status.state],
+      minutes === null ? null : `merges in about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    return element(
+      status.url ? 'a' : 'span',
+      { className: 'ghs-pill ghs-pill--attention ghs-pill--queued', attributes: { href: status.url, title, 'aria-label': title } },
+      [octicon('git-merge-queue'), 'Queued', status.position ? element('span', { className: 'ghs-pill-hours', text: `#${status.position}` }) : null],
+    );
+  }
 
   function formatHours(hours) {
     return hours >= 100 ? `${Math.round(hours)}h` : `${hours.toFixed(1)}h`;
@@ -43,6 +68,7 @@
         [element('span', { className: 'ghs-pill-hours', text: formatHours(status.hours) }), ` · ${LEVEL_TEXT[status.level]}`],
       );
     }
+    if (status.kind === 'queued') return queuedPill(status);
     const label = STATUS_LABEL[status.kind];
     const title = status.kind === 'bot_approved' ? `Approved by ${status.botApprovals.join(', ')}; no person has reviewed it yet` : null;
     return element('span', { className: `ghs-status ghs-status--${label.tone}`, attributes: { title } }, [label.icon ? octicon(label.icon) : null, label.text]);
@@ -56,6 +82,8 @@
         return octicon('git-pull-request-closed', 'ghs-state ghs-state--closed');
       case 'draft':
         return octicon('git-pull-request-draft', 'ghs-state ghs-state--draft');
+      case 'queued':
+        return octicon('git-merge-queue', 'ghs-state ghs-state--queued');
       default:
         return octicon('git-pull-request', 'ghs-state ghs-state--open');
     }
@@ -64,6 +92,7 @@
   function pullRequestState(pullRequest) {
     if (pullRequest.state === 'MERGED') return 'merged';
     if (pullRequest.state === 'CLOSED') return 'closed';
+    if (pullRequest.isInMergeQueue) return 'queued';
     if (pullRequest.isDraft) return 'draft';
     return 'open';
   }

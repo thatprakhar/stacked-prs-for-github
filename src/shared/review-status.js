@@ -56,6 +56,17 @@
   function reviewStatus(pullRequest, now, settings) {
     if (pullRequest.state === 'MERGED') return { kind: 'merged' };
     if (pullRequest.state === 'CLOSED') return { kind: 'closed' };
+    // In the merge queue it is on its way in, so the review clock no longer matters.
+    if (pullRequest.isInMergeQueue) {
+      const entry = pullRequest.mergeQueueEntry || {};
+      return {
+        kind: 'queued',
+        position: entry.position || null,
+        state: entry.state || null,
+        secondsToMerge: typeof entry.estimatedTimeToMerge === 'number' ? entry.estimatedTimeToMerge : null,
+        url: entry.mergeQueue ? entry.mergeQueue.url : null,
+      };
+    }
     if (pullRequest.isDraft) return { kind: 'draft' };
     const reviewed = humanReviewState(pullRequest);
     if (reviewed) return { kind: reviewed };

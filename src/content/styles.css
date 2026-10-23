@@ -269,6 +269,37 @@
   color: var(--ghs-fg-success);
 }
 
+.ghs-pill--queued {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-color: var(--borderColor-attention-muted, #d4a72c66);
+  text-decoration: none;
+}
+
+.ghs-pill--queued:hover {
+  border-color: currentColor;
+  text-decoration: none;
+}
+
+.ghs-pill--queued .ghs-octicon {
+  width: 14px;
+  height: 14px;
+}
+
+.ghs-meta-queued {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--ghs-fg-attention);
+  font-weight: 500;
+}
+
+.ghs-meta-queued .ghs-octicon {
+  width: 12px;
+  height: 12px;
+}
+
 .ghs-pill--button {
   font-family: inherit;
   cursor: pointer;
@@ -377,6 +408,10 @@
 
 .ghs-state--merged {
   color: var(--ghs-fg-done);
+}
+
+.ghs-state--queued {
+  color: var(--ghs-fg-attention);
 }
 
 .ghs-row-avatar {
@@ -821,6 +856,10 @@
 
 .ghs-segment--kind-merged {
   background: var(--ghs-fg-done);
+}
+
+.ghs-segment--kind-queued {
+  background: var(--ghs-fg-attention);
 }
 
 .ghs-segment--kind-draft,

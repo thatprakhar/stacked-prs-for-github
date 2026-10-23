@@ -10,6 +10,18 @@ const author = { login: 'prakhar', __typename: 'User' };
 const base = { state: 'OPEN', isDraft: false, createdAt: '2026-10-15T09:00:00-04:00', author, reviews: { nodes: [] }, timelineItems: { nodes: [] } };
 const review = (login, state, typename = 'User') => ({ state, author: { login, __typename: typename } });
 
+test('a pull request in the merge queue is queued, with its place and time to merge, and off the review clock', () => {
+  const entry = { position: 2, state: 'AWAITING_CHECKS', estimatedTimeToMerge: 284, mergeQueue: { url: 'https://github.com/o/r/queue/main' } };
+  assert.deepEqual(reviewStatus({ ...base, isInMergeQueue: true, mergeQueueEntry: entry }, now, DEFAULT_SETTINGS), {
+    kind: 'queued',
+    position: 2,
+    state: 'AWAITING_CHECKS',
+    secondsToMerge: 284,
+    url: 'https://github.com/o/r/queue/main',
+  });
+  assert.equal(reviewStatus({ ...base, state: 'MERGED', isInMergeQueue: false }, now, DEFAULT_SETTINGS).kind, 'merged');
+});
+
 test('a pull request with no human review is awaiting, timed from when it was opened', () => {
   assert.deepEqual(reviewStatus(base, now, DEFAULT_SETTINGS), { kind: 'awaiting', hours: 7, level: 'breached' });
 });
