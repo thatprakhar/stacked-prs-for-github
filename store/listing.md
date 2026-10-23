@@ -24,6 +24,7 @@ On a repository's pull request list
 • A blue bar marks pull requests updated since you last viewed them, as in GitHub's own list. Hover it to see what changed: new commits, pushes, reviews and comments.
 • A collapsed stack says how many of its pull requests were updated; hover to see which.
 • An SLA pill marks each one as on track, at risk or breached. Click the counts at the top to filter.
+• A power search replaces GitHub's: filters are tokens you add, edit and remove (author, label, review state, SLA, checks, reviewers, branches), it filters as you type, keeps stacks together, and adds quick filters (updated, review requested, mine, in a stack, hide drafts) and sorting by longest wait.
 • Switch back to GitHub's own list at any time.
 
 On a pull request page

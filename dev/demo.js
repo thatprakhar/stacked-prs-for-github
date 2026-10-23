@@ -56,20 +56,24 @@
       comments: { totalCount: options.comments || 0 },
       labels: { nodes: (options.labels || []).map((name) => ({ name, color: LABELS[name] })) },
       commits: { nodes: [{ commit: { statusCheckRollup: { state: options.checks || 'SUCCESS' } } }] },
+      updatedAt: options.updated || options.ready || '2026-10-14T10:00:00-04:00',
+      reviewDecision: options.reviews && options.reviews.some(([, state]) => state === 'APPROVED') ? 'APPROVED' : 'REVIEW_REQUIRED',
+      assignees: { nodes: (options.assignees || []).map(person) },
+      reviewRequests: { nodes: (options.requested || []).map((login) => ({ requestedReviewer: { login } })) },
       timelineItems: { nodes: [] },
       reviews: { nodes: (options.reviews || []).map(([login, state]) => ({ state, author: person(login) })) },
     };
   }
 
   const PULL_REQUESTS = [
-    pullRequest(214, '[docs] Explain the release checklist step by step', 'devon-reyes', 'devon/release-checklist', 'main', { ready: '2026-10-15T15:45:00-04:00', labels: ['docs'], comments: 1 }),
+    pullRequest(214, '[docs] Explain the release checklist step by step', 'devon-reyes', 'devon/release-checklist', 'main', { ready: '2026-10-15T15:45:00-04:00', labels: ['docs'], comments: 1, requested: ['priya-nair'] }),
     pullRequest(213, '[search] Highlight matched terms in results', 'sam-okafor', 'sam/search-highlight', 'sam/search-ranking', { ready: '2026-10-15T13:30:00-04:00', labels: ['search'], comments: 2, unread: true, reviews: [['coderabbitai', 'APPROVED']] }),
-    pullRequest(212, '[ui] Dark mode for the account menu', 'lee-park', 'lee/account-menu-dark', 'main', { ready: '2026-10-15T09:00:00-04:00', labels: ['ui'], comments: 4, unread: true }),
+    pullRequest(212, '[ui] Dark mode for the account menu', 'lee-park', 'lee/account-menu-dark', 'main', { ready: '2026-10-15T09:00:00-04:00', labels: ['ui'], comments: 4, unread: true, requested: ['priya-nair'], assignees: ['lee-park'] }),
     pullRequest(211, '[search] Rank results by recent sales', 'sam-okafor', 'sam/search-ranking', 'sam/search-variants', { ready: '2026-10-14T15:00:00-04:00', labels: ['search'], comments: 3 }),
     pullRequest(210, '[search] Index product variants', 'sam-okafor', 'sam/search-variants', 'main', { labels: ['search'], checks: 'FAILURE', comments: 6, reviews: [['mira-chen', 'CHANGES_REQUESTED']] }),
     pullRequest(209, '[deps] Bump the image pipeline to v4', 'renovate[bot]', 'renovate/image-pipeline-4.x', 'main', { ready: '2026-10-15T11:00:00-04:00', labels: ['dependencies'] }),
     pullRequest(207, '[checkout] Remove the legacy cart endpoint', 'mira-chen', 'mira/remove-legacy-cart', 'mira/order-summary', { draft: true, labels: ['checkout'] }),
-    pullRequest(206, '[infra] Cache build layers between CI runs', 'priya-nair', 'priya/ci-layer-cache', 'main', { labels: ['infra'], comments: 2, reviews: [['lee-park', 'APPROVED']] }),
+    pullRequest(206, '[infra] Cache build layers between CI runs', 'priya-nair', 'priya/ci-layer-cache', 'main', { labels: ['infra'], comments: 2, reviews: [['lee-park', 'APPROVED']], assignees: ['priya-nair'] }),
     pullRequest(205, '[checkout] Show the order summary on the review page', 'mira-chen', 'mira/order-summary', 'mira/discount-codes', { ready: '2026-10-15T14:00:00-04:00', labels: ['checkout'], comments: 1 }),
     pullRequest(203, '[checkout] Apply discount codes at the totals step', 'mira-chen', 'mira/discount-codes', 'mira/shipping-rates', { ready: '2026-10-15T10:40:00-04:00', labels: ['checkout'], checks: 'PENDING', comments: 2 }),
     pullRequest(202, '[checkout] Price shipping by weight and zone', 'mira-chen', 'mira/shipping-rates', 'mira/cart-totals', { ready: '2026-10-15T09:10:00-04:00', labels: ['checkout'], comments: 3, unread: true }),
@@ -128,8 +132,13 @@
         if (match) return STACKS.filter((stack) => stack.pull_requests.some((entry) => entry.number === Number(match[1])));
         return STACKS;
       }
+      if (message.type === 'graphql' && message.query.includes('$open')) {
+        return { open: { issueCount: PULL_REQUESTS.length }, merged: { issueCount: 1 }, closed: { issueCount: 0 }, all: { issueCount: PULL_REQUESTS.length + 1 } };
+      }
       if (message.type === 'graphql' && message.query.includes('search(')) {
-        return { search: { issueCount: PULL_REQUESTS.length, pageInfo: { hasNextPage: false, endCursor: null }, nodes: PULL_REQUESTS } };
+        const text = message.variables.search;
+        const nodes = /is:open/.test(text) ? PULL_REQUESTS : /is:merged|is:closed(?! is:unmerged)/.test(text) ? [MERGED] : /is:unmerged/.test(text) ? (/is:closed/.test(text) ? [] : PULL_REQUESTS) : [...PULL_REQUESTS, MERGED];
+        return { viewer: { login: 'priya-nair' }, search: { issueCount: nodes.length, pageInfo: { hasNextPage: false, endCursor: null }, nodes } };
       }
       if (message.type === 'graphql') {
         const repository = {};

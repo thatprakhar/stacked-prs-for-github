@@ -19,6 +19,7 @@
       .box { border: 1px solid var(--borderColor-default); border-radius: 6px; overflow: hidden; }
       .box-header { display: flex; gap: 16px; padding: 12px 16px; background: var(--bgColor-muted); }
       .muted { color: var(--fgColor-muted); }
+      .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
       .native { margin: 0; padding: 0; list-style: none; }
       .native li { padding: 8px 16px; border-top: 1px solid var(--borderColor-muted); }
       .pull-title { margin: 0 0 8px; font-size: 32px; font-weight: 400; }
@@ -49,7 +50,7 @@
     <script src="demo.js"></script>
     <script>
       // ?demo uses dev/demo.js; otherwise ?host=&repo= reads live data through dev/server.js.
-      // ?q= search, ?pr= pull request page, ?expand=stack-208,stack-215, ?theme=dark,
+      // ?q= search (the extension keeps it in sync), ?pr= pull request page, ?expand=stack-208,stack-215, ?theme=dark,
       // ?hover=<selector> hovers that element after loading (to show the what-changed popover).
       const parameters = new URLSearchParams(location.search);
       const demo = parameters.has('demo');
@@ -74,8 +75,8 @@
         if (demo) page.querySelector('#subtitle').textContent = 'mira-chen wants to merge 3 commits into mira/shipping-rates from mira/discount-codes';
       } else {
         page.innerHTML = `
-          <input class="search" id="search" />
-          <div class="box"><div class="box-header"><strong>Open</strong><span class="muted">Closed</span></div><ul class="native" id="native"></ul></div>`;
+          <div role="search" aria-label="Pull requests"><input class="search" id="search" /></div>
+          <div class="box"><h2 class="sr-only">Pull requests</h2><div class="box-header"><strong>Open</strong><span class="muted">Closed</span></div><ul class="native" id="native"></ul></div>`;
         page.querySelector('#search').value = parameters.get('q') || 'is:pr is:open';
         for (const link of (parameters.get('rows') || '201,202').split(',')) {
           const item = document.createElement('li');
@@ -128,10 +129,12 @@
     <script src="../src/shared/review-status.js"></script>
     <script src="../src/shared/stacks.js"></script>
     <script src="../src/shared/activity.js"></script>
+    <script src="../src/shared/search.js"></script>
     <script src="../src/content/octicons.js"></script>
     <script src="../src/content/api.js"></script>
     <script src="../src/content/render.js"></script>
     <script src="../src/content/activity-popover.js"></script>
+    <script src="../src/content/search-bar.js"></script>
     <script src="../src/content/list-view.js"></script>
     <script src="../src/content/stack-navigator.js"></script>
     <script src="../src/content/main.js"></script>

@@ -1,11 +1,13 @@
 (function (root) {
-  const { octicon, api, reviewStatus, groupPullRequests } = root.GitHubStacks;
+  const { octicon, api, reviewStatus, groupPullRequests, search, SearchBar } = root.GitHubStacks;
   const { element, statusPill, stateIcon, pullRequestState, pullRequestRow, separator, isUnread, unreadMarker, LEVEL_TEXT, LEVEL_TONE } = root.GitHubStacks.render;
 
   const REFRESH_MILLISECONDS = 3 * 60 * 1000;
   const REFRESH_ON_RETURN_MILLISECONDS = 30 * 1000;
   const LEVELS = ['breached', 'at_risk', 'on_track'];
   const PAGINATION_SELECTOR = 'nav[aria-label="Pagination"], nav[aria-label="pagination"], .paginate-container, [data-testid="pagination"]';
+  const NOTHING = { key: 'none', handled: new Set() };
+  const REVIEW_LABELS = { none: 'Not reviewed', approved: 'Approved', changes_requested: 'Changes requested', commented: 'Commented', 'bot-approved': 'Bot approved', required: 'Review required' };
 
   function pullRequestLinkPattern(route) {
     return new RegExp(`^/${route.owner}/${route.repository}/pull/\\d+/?$`, 'i');
@@ -14,7 +16,7 @@
   function findNativeList(route, ownRoot) {
     const pattern = pullRequestLinkPattern(route);
     const links = [...document.querySelectorAll('a[href*="/pull/"]')].filter((link) => {
-      if (ownRoot.contains(link) || link.closest('.ghs-navigator')) return false;
+      if (ownRoot.contains(link) || link.closest('.ghs-navigator, .ghs-floating')) return false;
       try {
         return pattern.test(new URL(link.href, location.href).pathname);
       } catch {
@@ -34,26 +36,77 @@
     return container && container !== document.body ? container : null;
   }
 
-  function currentQuery(ownRoot) {
-    const fromUrl = new URLSearchParams(location.search).get('q');
-    if (fromUrl) return fromUrl;
-    const input = [...document.querySelectorAll('input')].find(
-      (candidate) => !ownRoot.contains(candidate) && /(^|\s)(is|state):(pr|open|closed|merged)(\s|$)/.test(candidate.value),
+  function nativeSearchInput(ownRoot) {
+    return [...document.querySelectorAll('input')].find(
+      (candidate) =>
+        !ownRoot.contains(candidate) &&
+        !candidate.closest('.ghs-floating') &&
+        (/(^|\s)(is|state):(pr|open|closed|merged)(\s|$)/.test(candidate.value) || /pulls.*filter|issues-search/i.test(candidate.id)),
     );
-    return input ? input.value : 'is:pr is:open';
+  }
+
+  // GitHub's own search box, and everything between it and the list (Open/Closed, the filter menus, sort), which
+  // the extension's search replaces. Found by role and position rather than class names, which GitHub changes.
+  function nativeSearchChrome(native, ownRoot) {
+    const chrome = [];
+    const input = nativeSearchInput(ownRoot);
+    const box = input && input.closest('[role="search"], form');
+    if (box && !box.contains(native) && !box.contains(ownRoot)) chrome.push(box);
+    for (let sibling = native.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
+      if (sibling === ownRoot || sibling.contains(ownRoot) || /^H[1-6]$/.test(sibling.tagName)) continue;
+      chrome.push(sibling);
+    }
+    return chrome;
+  }
+
+  // GitHub writes is:pr into its queries; every query here is about pull requests, so it is left out.
+  function tidy(text) {
+    return search
+      .tokenize(text)
+      .filter((token) => search.classify(token) !== 'ignore')
+      .map((token) => token.raw)
+      .join(' ');
+  }
+
+  function urlQuery() {
+    return new URLSearchParams(location.search).get('q');
+  }
+
+  function initialQuery(ownRoot) {
+    const fromUrl = urlQuery();
+    if (fromUrl !== null) return tidy(fromUrl);
+    const input = nativeSearchInput(ownRoot);
+    return input ? tidy(input.value) : search.DEFAULT_QUERY;
+  }
+
+  function formatNumber(count) {
+    return count.toLocaleString();
   }
 
   class ListView {
     constructor() {
       this.root = element('section', { className: 'ghs-root', attributes: { 'aria-label': 'Stacked pull requests' } });
+      this.searchBar = new SearchBar();
+      this.body = element('div', { className: 'ghs-body' });
+      this.root.append(this.searchBar.node, this.body);
       this.native = null;
+      this.chrome = [];
       this.key = null;
-      this.data = null;
+      this.query = search.DEFAULT_QUERY;
+      this.draft = '';
+      this.request = NOTHING;
+      this.cache = new Map();
+      this.completeScopes = new Map();
+      this.counts = new Map();
+      this.stacks = null;
+      this.settings = null;
+      this.viewer = null;
+      this.shown = null;
       this.error = null;
       this.loading = false;
-      this.filter = null;
       this.enabled = true;
       this.expanded = new Set();
+      this.revealed = new Set();
       this.ready = Promise.all([api.readLocal('stackedView', true), api.readLocal('expandedStacks', [])]).then(([enabled, expanded]) => {
         this.enabled = enabled;
         this.expanded = new Set(expanded);
@@ -64,47 +117,142 @@
 
     sync(route) {
       this.route = route;
+      const key = `${route.host}/${route.owner}/${route.repository}`;
       const native = findNativeList(route, this.root);
-      if (!native) {
-        if (!this.root.isConnected) return;
-        if (this.data && this.data.pullRequests.length > 0 && currentQuery(this.root) === this.query) return;
+      if (native) {
+        if (this.native && this.native !== native) this.native.classList.remove('ghs-native-hidden');
+        if (this.native !== native || this.chrome.some((node) => !node.isConnected)) {
+          this.showChrome();
+          this.chrome = [];
+        }
+        this.native = native;
+        if (!this.root.isConnected || this.root.parentElement !== native.parentElement) native.before(this.root);
+        if (this.chrome.length === 0) this.chrome = nativeSearchChrome(native, this.root);
+      } else if (!this.root.isConnected || key !== this.key) {
+        // GitHub's list can empty out under a query with no results; keep ours, which has its own search.
         this.unmount();
         return;
       }
-      if (this.native && this.native !== native) this.native.classList.remove('ghs-native-hidden');
-      this.native = native;
-      if (!this.root.isConnected || this.root.parentElement !== native.parentElement) native.before(this.root);
 
-      const query = currentQuery(this.root);
-      const key = `${route.host}/${route.owner}/${route.repository}?${query}`;
-      if (key !== this.key) {
-        this.key = key;
-        this.query = query;
-        this.data = null;
-        this.error = null;
-        this.load();
+      if (key !== this.key) this.reset(key);
+      else {
+        const fromUrl = urlQuery();
+        if (fromUrl !== null && fromUrl !== this.urlQuery && fromUrl !== this.query.trim()) {
+          // GitHub navigated, for example from its sidebar's "Review requests".
+          this.urlQuery = fromUrl;
+          this.setQuery(tidy(fromUrl), { commit: true, writeUrl: false });
+        }
       }
       this.applyNativeVisibility();
     }
 
+    reset(key) {
+      this.key = key;
+      this.cache = new Map();
+      this.completeScopes = new Map();
+      this.counts = new Map();
+      this.stacks = null;
+      this.shown = null;
+      this.error = null;
+      this.revealed = new Set();
+      this.request = NOTHING;
+      this.query = initialQuery(this.root);
+      this.draft = '';
+      this.urlQuery = urlQuery();
+      api.settings().then((settings) => {
+        if (!this.settings) {
+          this.settings = settings;
+          this.render();
+        }
+      }, () => {});
+      this.commit();
+    }
+
     unmount() {
+      this.searchBar.close();
       this.root.remove();
       if (this.native) this.native.classList.remove('ghs-native-hidden');
+      this.showChrome();
       for (const pagination of document.querySelectorAll(PAGINATION_SELECTOR)) pagination.classList.remove('ghs-native-hidden');
       this.native = null;
+      this.chrome = [];
       this.key = null;
     }
 
+    showChrome() {
+      for (const node of this.chrome) node.classList.remove('ghs-native-hidden');
+    }
+
     applyNativeVisibility() {
-      const hide = this.enabled && Boolean(this.data) && !this.error;
-      if (this.native && this.native.classList.contains('ghs-native-hidden') !== hide) this.native.classList.toggle('ghs-native-hidden', hide);
-      for (const pagination of document.querySelectorAll(PAGINATION_SELECTOR)) {
-        if (pagination.classList.contains('ghs-native-hidden') !== hide) pagination.classList.toggle('ghs-native-hidden', hide);
+      const hide = this.enabled && Boolean(this.result()) && !this.error;
+      for (const node of [this.native, ...this.chrome, ...document.querySelectorAll(PAGINATION_SELECTOR)]) {
+        if (node && node.classList.contains('ghs-native-hidden') !== hide) node.classList.toggle('ghs-native-hidden', hide);
       }
     }
 
+    // What to load for a query: the pull requests in its states (and GitHub-only qualifiers), all of them when they
+    // fit, so every other filter applies instantly here. When there are more than fit, its words and qualifiers are
+    // sent to GitHub too, so the search covers all of them.
+    target(plan) {
+      if (plan.scopeQuery === null) return NOTHING;
+      const complete = this.completeScopes.get(plan.scopeQuery);
+      if (complete) return { key: complete, query: plan.scopeQuery, sort: this.cache.get(complete).sort, handled: new Set(), githubTerms: plan.githubTerms };
+      const scopeKey = `${plan.scopeQuery}\n${plan.serverSort}`;
+      const scope = this.cache.get(scopeKey);
+      if (scope && scope.truncated && plan.deepTerms.length > 0) {
+        const query = `${plan.scopeQuery} ${plan.deepTerms.join(' ')}`.trim();
+        return { key: `${query}\n${plan.serverSort}`, query, sort: plan.serverSort, handled: new Set(plan.deepTerms), githubTerms: plan.githubTerms, deep: true, scopeTotal: scope.total };
+      }
+      return { key: scopeKey, query: plan.scopeQuery, sort: plan.serverSort, handled: new Set(), githubTerms: plan.githubTerms };
+    }
+
+    fresh(key, maximumAge = REFRESH_MILLISECONDS) {
+      const cached = this.cache.get(key);
+      return Boolean(cached) && Date.now() - cached.fetchedAt < maximumAge;
+    }
+
+    setQuery(query, { commit = false, writeUrl = true } = {}) {
+      const changed = query !== this.query;
+      this.query = query;
+      if (writeUrl && changed) this.writeUrl();
+      const next = this.target(search.planQuery(query));
+      // Already loaded: switch at once, no need to press Enter.
+      if (next.key !== this.request.key && (next.key === NOTHING.key || this.fresh(next.key))) this.request = next;
+      if (commit) this.commit();
+      else this.render();
+    }
+
+    writeUrl() {
+      const url = new URL(location.href);
+      const query = this.query.trim();
+      if (url.searchParams.get('q') === query) return;
+      url.searchParams.set('q', query);
+      history.replaceState(history.state, '', url);
+      this.urlQuery = query;
+    }
+
+    commit() {
+      const next = this.target(search.planQuery(this.query));
+      const changed = next.key !== this.request.key;
+      this.request = next;
+      if (changed) this.error = null;
+      if (next.key === NOTHING.key || (this.fresh(next.key) && this.stacks)) this.render();
+      else if (changed || !this.loading) this.load();
+      else this.render();
+    }
+
+    pendingTarget() {
+      const next = this.target(search.planQuery(this.query));
+      return next.key === this.request.key ? null : next;
+    }
+
+    result() {
+      if (this.request.key === NOTHING.key) return { pullRequests: [], total: 0, truncated: false, fetchedAt: Date.now() };
+      return this.cache.get(this.request.key) || this.shown;
+    }
+
     tick(maximumAge = REFRESH_MILLISECONDS) {
-      if (!this.root.isConnected || document.visibilityState !== 'visible' || !this.data) return;
+      if (!this.root.isConnected || document.visibilityState !== 'visible' || !this.result()) return;
       if (!api.extensionAlive()) {
         if (!this.stale) {
           this.stale = true;
@@ -112,41 +260,72 @@
         }
         return;
       }
-      if (Date.now() - this.data.fetchedAt > maximumAge) this.load({ quiet: true });
+      if (this.request.key !== NOTHING.key && !this.fresh(this.request.key, maximumAge)) this.load({ quiet: true });
       else this.render();
     }
 
     async load({ quiet = false } = {}) {
       const key = this.key;
+      const request = this.request;
+      if (request.key === NOTHING.key) return;
       const { owner, repository } = this.route;
+      const countsKey = request.githubTerms.join(' ');
       this.loading = true;
       if (!quiet) this.render();
       try {
         await this.ready;
-        const [settings, result, stacks] = await Promise.all([
+        const [settings, result, stacks, counts] = await Promise.all([
           api.settings(),
-          api.searchPullRequests(owner, repository, this.query),
-          api.listStacks(owner, repository),
+          api.searchPullRequests(owner, repository, `${request.query} sort:${request.sort}`, (partial) => {
+            if (key !== this.key) return;
+            this.cache.set(request.key, { ...partial, sort: request.sort, truncated: true, partial: true, fetchedAt: Date.now() });
+            this.viewer = partial.viewer || this.viewer;
+            if (request.key === this.request.key) this.render();
+          }),
+          this.stacks && !quiet ? this.stacks : api.listStacks(owner, repository),
+          this.counts.has(countsKey) && !quiet ? this.counts.get(countsKey) : api.countPullRequests(owner, repository, countsKey).catch(() => null),
         ]);
         if (key !== this.key) return;
-        this.data = { ...result, stacks, settings, fetchedAt: Date.now() };
+        const truncated = result.total > result.pullRequests.length;
+        this.cache.set(request.key, { ...result, sort: request.sort, truncated, fetchedAt: Date.now() });
+        if (!truncated && !request.deep) this.completeScopes.set(request.query, request.key);
+        if (counts) this.counts.set(countsKey, counts);
+        this.settings = settings;
+        this.stacks = stacks;
+        this.viewer = result.viewer || this.viewer;
         this.error = null;
       } catch (error) {
         if (key !== this.key) return;
-        if (error.code === api.CONTEXT_INVALIDATED && this.data) this.stale = true;
-        else this.error = error;
+        if (error.code === api.CONTEXT_INVALIDATED && this.result()) this.stale = true;
+        else if (request.key === this.request.key) this.error = error;
       } finally {
-        if (key === this.key) {
+        if (key === this.key && request.key === this.request.key) {
           this.loading = false;
+          const loaded = this.cache.get(request.key);
+          if (loaded && loaded.partial && this.error) this.cache.delete(request.key);
+          // There were more than fit: search the rest on GitHub with the words and qualifiers typed.
+          const next = this.target(search.planQuery(this.query));
+          if (next.deep && next.key !== request.key && !this.error) {
+            this.request = next;
+            this.load({ quiet: true });
+          }
           this.render();
           this.applyNativeVisibility();
         }
       }
     }
 
-    setEnabled(enabled) {
+    async setEnabled(enabled) {
       this.enabled = enabled;
-      api.writeLocal({ stackedView: enabled });
+      await api.writeLocal({ stackedView: enabled });
+      if (!enabled) {
+        // Hand the query to GitHub's own list, which only reads it when the page loads.
+        const input = nativeSearchInput(this.root);
+        if (input && tidy(input.value) !== tidy(this.query)) {
+          location.reload();
+          return;
+        }
+      }
       this.render();
       this.applyNativeVisibility();
     }
@@ -164,8 +343,19 @@
     }
 
     render() {
-      const content = this.enabled ? this.renderContent() : [this.renderCollapsedBar()];
-      this.root.replaceChildren(...content);
+      if (!this.enabled) {
+        this.searchBar.close();
+        this.searchBar.node.hidden = true;
+        this.body.replaceChildren(this.renderCollapsedBar());
+        return;
+      }
+      const content = this.renderContent();
+      this.searchBar.node.hidden = !this.view;
+      if (this.view) this.searchBar.update(this.searchModel());
+      else this.searchBar.close();
+      this.body.replaceChildren(...content);
+      // Still showing the previous results while the new ones load.
+      this.body.classList.toggle('is-loading', this.request.key !== NOTHING.key && !this.cache.has(this.request.key) && Boolean(this.result()));
     }
 
     renderCollapsedBar() {
@@ -198,12 +388,45 @@
       ]);
     }
 
+    // Everything the list and the search bar show for the current query, computed once per render.
+    computeView(result) {
+      const settings = this.settings;
+      const now = Date.now();
+      const plan = search.planQuery(this.fullQuery());
+      const statuses = new Map(result.pullRequests.map((pullRequest) => [pullRequest.number, reviewStatus(pullRequest, now, settings)]));
+      const statusOf = (pullRequest) => statuses.get(pullRequest.number);
+      const sorted = search.sortPullRequests(result.pullRequests, plan.sort, statusOf);
+      const entries = groupPullRequests(sorted, this.stacks || []);
+      const stacked = new Set();
+      for (const entry of entries) {
+        if (entry.type === 'stack') for (const row of entry.rows) stacked.add(row.pullRequest.number);
+        else if (entry.stack) stacked.add(entry.pullRequest.number);
+      }
+      // The qualifier still being typed matches as a prefix, so the list narrows instead of emptying.
+      const draftTokens = /\s$/.test(this.draft) ? [] : search.tokenize(this.draft);
+      const typing = draftTokens.length > 0 && draftTokens[draftTokens.length - 1].key ? draftTokens[draftTokens.length - 1] : null;
+      const context = { viewer: this.viewer, statusOf, isStacked: (pullRequest) => stacked.has(pullRequest.number), handled: this.request.handled, partial: typing ? typing.raw : null };
+      const matched = new Set(result.pullRequests.filter((pullRequest) => search.matchesAll(pullRequest, plan.filters, context)).map((pullRequest) => pullRequest.number));
+      const rank = new Map(sorted.map((pullRequest, index) => [pullRequest.number, index]));
+      const visible = [];
+      for (const entry of entries) {
+        const rows = entry.type === 'stack' ? entry.rows.filter((row) => matched.has(row.pullRequest.number)) : matched.has(entry.pullRequest.number) ? [entry] : [];
+        if (rows.length === 0) continue;
+        visible.push({ entry, rows, rank: Math.min(...rows.map((row) => rank.get(row.pullRequest.number))) });
+      }
+      visible.sort((left, right) => left.rank - right.rank);
+      return { result, plan, statuses, context, entries, visible, matched, refining: plan.refining, options: new Map(), vocabulary: null };
+    }
+
     renderContent() {
+      this.view = null;
       if (this.error && this.error.code === api.CONTEXT_INVALIDATED) {
         return [this.renderMessage([octicon('sync'), ' Stacked PRs for GitHub was updated. Refresh the page to use it.'], [this.button('Refresh page', () => location.reload(), 'sync', 'ghs-button--primary')])];
       }
-      if (this.error) {
-        const needsToken = this.error.code === 'no_token' || this.error.code === 'bad_token';
+      const needsToken = this.error && (this.error.code === 'no_token' || this.error.code === 'bad_token');
+      // A failed load with results already on screen keeps them, and the search, under a notice.
+      const errorNotice = this.error && !needsToken && this.result() && this.settings ? this.renderErrorNotice() : null;
+      if (this.error && !errorNotice) {
         return [
           this.renderMessage(
             needsToken
@@ -215,70 +438,73 @@
           ),
         ];
       }
-      if (!this.data) {
+      const result = this.result();
+      if (!result || !this.settings) {
         return [this.renderMessage([element('span', { className: 'ghs-spinner', attributes: { 'aria-hidden': 'true' } }), ' Loading stacked pull requests…'], [])];
       }
+      if (result !== this.shown && this.cache.get(this.request.key) === result) this.shown = result;
 
-      const { settings } = this.data;
-      const now = Date.now();
-      const statuses = new Map(this.data.pullRequests.map((pullRequest) => [pullRequest.number, reviewStatus(pullRequest, now, settings)]));
-      const entries = groupPullRequests(this.data.pullRequests, this.data.stacks);
-      const counts = { breached: 0, at_risk: 0, on_track: 0 };
-      for (const status of statuses.values()) if (status.kind === 'awaiting') counts[status.level] += 1;
-      const matches = (pullRequest) => !this.filter || (statuses.get(pullRequest.number).kind === 'awaiting' && statuses.get(pullRequest.number).level === this.filter);
+      const view = this.computeView(result);
+      this.view = view;
+      const { settings } = this;
+      const { statuses, visible, matched, refining, entries } = view;
 
       const list = element('div', { className: 'ghs-list', attributes: { role: 'list' } });
-      for (const entry of entries) {
+      for (const { entry, rows } of visible) {
         if (entry.type === 'single') {
-          if (!matches(entry.pullRequest)) continue;
           list.append(
             element('div', { className: 'ghs-entry', attributes: { role: 'listitem' } }, pullRequestRow(entry.pullRequest, statuses.get(entry.pullRequest.number), { stack: entry.stack, position: entry.position, standalone: true })),
           );
-          continue;
-        }
-        const rows = entry.rows.filter((row) => matches(row.pullRequest));
-        if (rows.length === 0) continue;
-        list.append(this.renderStack(entry, rows, statuses));
+        } else list.append(this.renderStack(entry, rows, statuses, refining));
       }
-      if (!list.firstChild) list.append(element('div', { className: 'ghs-empty', text: this.filter ? `No pull requests are ${LEVEL_TEXT[this.filter].toLowerCase()}.` : 'No pull requests match.' }));
+      if (!list.firstChild) list.append(this.renderEmpty(view));
 
-      const stackCount = entries.filter((entry) => entry.type === 'stack').length;
+      const stackCount = visible.filter(({ entry }) => entry.type === 'stack').length;
+      const slaCounts = search.facetCounts(result.pullRequests, view.plan.filters, 'sla', view.context);
+      const total = result.pullRequests.length;
       const toolbar = element('div', { className: 'ghs-toolbar' }, [
         element('div', { className: 'ghs-toolbar-title' }, [
           octicon('stack'),
           'Stacked view',
-          element('span', { className: 'ghs-counter', text: String(this.data.pullRequests.length) }),
+          element('span', { className: 'ghs-counter', text: matched.size === total ? String(total) : `${matched.size} of ${total}`, attributes: { title: `${matched.size} of the ${total} loaded pull requests match` } }),
           stackCount > 0 ? element('span', { className: 'ghs-toolbar-note', text: `${stackCount} ${stackCount === 1 ? 'stack' : 'stacks'}` }) : null,
         ]),
         element(
           'div',
           { className: 'ghs-summary', attributes: { role: 'group', 'aria-label': 'Filter by review SLA' } },
           LEVELS.map((level) => {
-            const pressed = this.filter === level;
+            const value = level.replace('_', '-');
+            const pressed = search.hasToken(this.query, 'sla', value);
             const chip = element(
               'button',
-              { className: `ghs-pill ghs-pill--${LEVEL_TONE[level]} ghs-pill--button${pressed ? ' is-pressed' : ''}`, attributes: { type: 'button', 'aria-pressed': String(pressed), title: `Show only pull requests that are ${LEVEL_TEXT[level].toLowerCase()}` } },
-              [`${LEVEL_TEXT[level]}: `, element('span', { className: 'ghs-pill-hours', text: String(counts[level]) })],
+              {
+                className: `ghs-pill ghs-pill--${LEVEL_TONE[level]} ghs-pill--button${pressed ? ' is-pressed' : ''}`,
+                attributes: { type: 'button', 'aria-pressed': String(pressed), title: `${pressed ? 'Stop showing only' : 'Show only'} pull requests that are ${LEVEL_TEXT[level].toLowerCase()} (sla:${value})` },
+              },
+              [`${LEVEL_TEXT[level]}: `, element('span', { className: 'ghs-pill-hours', text: String(slaCounts.get(value) || 0) })],
             );
-            chip.addEventListener('click', () => {
-              this.filter = pressed ? null : level;
-              this.render();
-            });
+            chip.addEventListener('click', () => this.setQuery(search.toggleToken(this.query, 'sla', value), { commit: true }));
             return chip;
           }),
         ),
         element('div', { className: 'ghs-actions' }, [
-          stackCount > 0 ? this.button(this.allExpanded(entries) ? 'Collapse all' : 'Expand all', () => this.toggleAll(entries), null, 'ghs-button--small') : null,
+          stackCount > 0 && !refining ? this.button(this.allExpanded(entries) ? 'Collapse all' : 'Expand all', () => this.toggleAll(entries), null, 'ghs-button--small') : null,
           this.iconButton('Refresh', 'sync', () => (this.stale ? location.reload() : this.load({ quiet: true })), this.loading ? 'is-spinning' : ''),
           this.iconButton('Settings', 'gear', () => api.openOptions()),
           this.iconButton('Show the GitHub list', 'list-unordered', () => this.setEnabled(false)),
         ]),
       ]);
 
-      const updated = new Date(this.data.fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const updated = new Date(result.fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
       const workdays = settings.workdays.length === 5 && settings.workdays.every((day, index) => day === index + 1) ? 'Mon–Fri' : `${settings.workdays.length} days a week`;
       const footer = element('div', { className: 'ghs-footer' }, [
-        this.data.total > this.data.pullRequests.length ? `Showing the first ${this.data.pullRequests.length} of ${this.data.total}` : `${this.data.total} pull requests`,
+        result.partial
+          ? element('span', {}, [element('span', { className: 'ghs-spinner ghs-spinner--small', attributes: { 'aria-hidden': 'true' } }), ` Loaded ${formatNumber(total)} of ${formatNumber(result.total)}, loading more…`])
+          : result.incomplete
+            ? `Showing ${formatNumber(total)} of ${formatNumber(result.total)}; GitHub did not answer for the rest`
+            : result.truncated
+            ? `Showing the first ${formatNumber(total)} of ${formatNumber(result.total)}${this.request.deep ? ' found on GitHub' : ''}`
+            : `${formatNumber(result.total)} pull requests${this.request.deep ? ' found on GitHub' : ''}`,
         separator(),
         `SLA ${settings.slaHours} work hours, at risk after ${settings.atRiskHours}`,
         separator(),
@@ -286,7 +512,189 @@
         separator(),
         `Updated ${updated}`,
       ]);
-      return [this.stale ? this.renderStaleNotice() : null, toolbar, list, footer].filter(Boolean);
+      return [this.stale ? this.renderStaleNotice() : null, errorNotice, toolbar, list, footer].filter(Boolean);
+    }
+
+    renderErrorNotice() {
+      return element('div', { className: 'ghs-notice', attributes: { role: 'alert' } }, [
+        element('span', {}, [octicon('x'), ` Could not load this search from GitHub: ${this.error.message}`]),
+        this.button('Retry', () => this.load(), 'sync', 'ghs-button--small'),
+      ]);
+    }
+
+    renderEmpty(view) {
+      const pending = this.pendingTarget();
+      const { result } = view;
+      const lines = [element('div', { className: 'ghs-empty-title', text: view.refining || view.result.pullRequests.length > 0 ? 'No pull requests match this search.' : 'No pull requests here.' })];
+      if (pending && pending.deep) lines.push(element('div', { text: `Only the ${formatNumber(result.pullRequests.length)} loaded of ${formatNumber(pending.scopeTotal)} were searched. Press Enter to search all of them on GitHub.` }));
+      else if (pending) lines.push(element('div', { text: 'Press Enter to run this search.' }));
+      const actions = [];
+      if (pending) actions.push(this.button('Search GitHub', () => this.commit(), 'search', 'ghs-button--small'));
+      if (view.refining) {
+        actions.push(
+          this.button('Clear filters', () => {
+            this.draft = '';
+            this.setQuery(search.clearFilters(this.query), { commit: true });
+          }, 'x', 'ghs-button--small'),
+        );
+      }
+      return element('div', { className: 'ghs-empty' }, [...lines, actions.length > 0 ? element('div', { className: 'ghs-empty-actions' }, actions) : null]);
+    }
+
+    // People, labels and branches of the loaded pull requests, for the menus and autocomplete.
+    vocabulary(pullRequests) {
+      const people = new Map();
+      const addPerson = (actor) => {
+        if (actor && actor.login && !people.has(actor.login)) people.set(actor.login, { value: actor.login, avatarUrl: actor.avatarUrl || null });
+      };
+      const labels = new Map();
+      const branches = new Set();
+      for (const pullRequest of pullRequests) {
+        addPerson(pullRequest.author);
+        for (const assignee of (pullRequest.assignees && pullRequest.assignees.nodes) || []) addPerson(assignee);
+        for (const review of (pullRequest.reviews && pullRequest.reviews.nodes) || []) addPerson(review.author);
+        for (const request of (pullRequest.reviewRequests && pullRequest.reviewRequests.nodes) || []) addPerson(request.requestedReviewer);
+        for (const label of (pullRequest.labels && pullRequest.labels.nodes) || []) labels.set(label.name, { value: label.name, color: label.color });
+        branches.add(pullRequest.headRefName);
+        branches.add(pullRequest.baseRefName);
+      }
+      const me = this.viewer ? [{ value: '@me', detail: `You (${this.viewer})` }] : [];
+      const everyone = [...me, ...[...people.values()].sort((left, right) => left.value.localeCompare(right.value))];
+      const authors = [...me, ...[...new Map(pullRequests.filter((entry) => entry.author).map((entry) => [entry.author.login, { value: entry.author.login, avatarUrl: entry.author.avatarUrl }])).values()]];
+      const branchList = [...branches].filter(Boolean).sort();
+      return {
+        author: authors,
+        assignee: everyone,
+        'review-requested': everyone,
+        'user-review-requested': everyone,
+        'reviewed-by': everyone,
+        label: [...labels.values()].sort((left, right) => left.value.localeCompare(right.value)),
+        head: branchList,
+        base: branchList,
+      };
+    }
+
+    // The values a filter can take, with how many loaded pull requests each would show given the other filters.
+    options(key) {
+      const view = this.view;
+      if (!view) return [];
+      if (view.options.has(key)) return view.options.get(key);
+      const { result, plan, context } = view;
+      const pullRequests = result.pullRequests;
+      const facets = search.FACET_KEYS.has(key) ? search.facetCounts(pullRequests, plan.filters, key, context) : null;
+      const counts = facets ? new Map([...facets].map(([value, count]) => [String(value).toLowerCase(), count])) : null;
+      const count = (value) => (counts ? counts.get(value.toLowerCase()) || 0 : undefined);
+      const vocabulary = view.vocabulary || (view.vocabulary = this.vocabulary(pullRequests));
+      const fixed = (entries) => entries.map(([value, label, extra = {}]) => ({ value, label, count: count(value), ...extra }));
+      let options;
+      switch (key) {
+        case 'review':
+          options = fixed(search.VALUES.review.map(([value, detail]) => [value, REVIEW_LABELS[value], { detail: detail === REVIEW_LABELS[value] ? undefined : detail }]));
+          break;
+        case 'sla':
+          options = fixed([['breached', 'SLA breached', { color: 'd1242f' }], ['at-risk', 'At risk', { color: 'bf8700' }], ['on-track', 'On track', { color: '1a7f37' }]]);
+          break;
+        case 'status':
+          options = fixed([['success', 'Passing', { icon: 'check' }], ['failure', 'Failing', { icon: 'x' }], ['pending', 'Running', { icon: 'dot-fill' }]]);
+          break;
+        case 'is':
+          options = fixed([['draft', 'Draft', { icon: 'git-pull-request-draft' }], ['unread', 'Updated since you viewed it', { icon: 'dot-fill' }], ['stacked', 'In a stack', { icon: 'stack' }]]);
+          break;
+        case 'no':
+          options = fixed([['label', 'Label', { icon: 'tag' }], ['assignee', 'Assignee', { icon: 'person' }], ['review-requested', 'Review request', { icon: 'eye' }]]);
+          break;
+        case 'label':
+          options = vocabulary.label.map((label) => ({ value: label.value, label: label.value, color: label.color || 'd1d9e0', count: count(label.value) }));
+          break;
+        case 'head':
+        case 'base':
+          options = vocabulary.head.map((branch) => ({ value: branch, label: branch, icon: 'git-branch', count: count(branch) }));
+          break;
+        default: {
+          const people = (key === 'author' ? vocabulary.author : vocabulary.assignee).filter((person) => person.value !== '@me');
+          const viewer = this.viewer ? people.find((person) => person.value === this.viewer) : null;
+          options = [
+            ...(this.viewer ? [{ value: '@me', label: 'You', detail: this.viewer, avatarUrl: viewer ? viewer.avatarUrl || null : null, count: count(this.viewer) }] : []),
+            ...people.filter((person) => person.value !== this.viewer).map((person) => ({ value: person.value, label: person.value, avatarUrl: person.avatarUrl || null, count: count(person.value) })),
+          ];
+        }
+      }
+      if (counts && !['review', 'sla', 'status', 'is', 'no'].includes(key)) {
+        options.sort((left, right) => (right.value === '@me') - (left.value === '@me') || right.count - left.count || left.label.localeCompare(right.label));
+      }
+      view.options.set(key, options);
+      return options;
+    }
+
+    lookup(key, value) {
+      const lowered = value.toLowerCase();
+      return this.options(key).find((option) => option.value.toLowerCase() === lowered) || null;
+    }
+
+    fullQuery() {
+      return [this.query.trim(), this.draft.trim()].filter(Boolean).join(' ');
+    }
+
+    setDraft(draft) {
+      if (draft === this.draft) return;
+      this.draft = draft;
+      this.render();
+    }
+
+    addDraft(text) {
+      this.draft = '';
+      this.setQuery(search.replaceTokens(this.query, [], [text]), { commit: true });
+    }
+
+    searchModel() {
+      const { result, plan, context, matched } = this.view;
+      const pullRequests = result.pullRequests;
+      const query = this.query;
+      const apply = (next) => this.setQuery(next, { commit: true });
+      const counts = this.counts.get(this.request.githubTerms ? this.request.githubTerms.join(' ') : '') || null;
+      const countWith = (next) => {
+        const filters = search.planQuery([next, this.draft].join(' ')).filters;
+        return pullRequests.filter((pullRequest) => search.matchesAll(pullRequest, filters, context)).length;
+      };
+      const chip = (id, label, icon, key, value, title, negated = false) => {
+        const active = search.hasToken(query, key, value, negated);
+        const next = search.toggleToken(query, key, value, negated);
+        return { id, label, icon, title, active, count: active ? matched.size : countWith(next), onToggle: () => apply(next) };
+      };
+      const scope = this.cache.get(`${plan.scopeQuery}\n${plan.serverSort}`);
+      return {
+        query,
+        draft: this.draft,
+        states: plan.states,
+        stateCounts: counts,
+        truncated: scope && scope.truncated && !this.request.deep ? scope.total : null,
+        summary: `${matched.size} pull requests match`,
+        vocabulary: this.view.vocabulary || (this.view.vocabulary = this.vocabulary(pullRequests)),
+        chips: [
+          chip('unread', 'Updated', 'dot-fill', 'is', 'unread', 'Updated since you last viewed them (is:unread)'),
+          this.viewer ? chip('requested', 'Review requested', 'eye', 'review-requested', '@me', 'Waiting on your review (review-requested:@me)') : null,
+          this.viewer ? chip('mine', 'Mine', 'person', 'author', '@me', 'Opened by you (author:@me)') : null,
+          chip('stacked', 'In a stack', 'stack', 'is', 'stacked', 'Part of a stack (is:stacked)'),
+          chip('drafts', 'Hide drafts', 'git-pull-request-draft', 'is', 'draft', 'Leave out drafts (-is:draft)', true),
+        ].filter(Boolean),
+        sort: {
+          value: plan.sort,
+          label: search.SORTS[plan.sort],
+          options: Object.entries(search.SORTS).map(([value, label]) => ({ value, label })),
+          onChange: (value) => apply(search.setSort(query, value)),
+        },
+        clearable: search.clearFilters(query) !== query.trim() || this.draft.trim() !== '',
+        options: (key) => this.options(key),
+        lookup: (key, value) => this.lookup(key, value),
+        labelFor: (key, value) => {
+          const option = this.lookup(key, value);
+          return option ? option.label : value;
+        },
+        onQuery: apply,
+        onDraft: (draft) => this.setDraft(draft),
+        onAddDraft: (text) => this.addDraft(text),
+        onStates: (states) => apply(search.setStates(query, states)),
+      };
     }
 
     allExpanded(entries) {
@@ -305,9 +713,13 @@
       this.render();
     }
 
-    renderStack(entry, rows, statuses) {
+    renderStack(entry, rows, statuses, refining) {
       const { stack } = entry;
-      const expanded = Boolean(this.filter) || this.expanded.has(this.stackStorageKey(stack));
+      const storageKey = this.stackStorageKey(stack);
+      const expanded = refining || this.expanded.has(storageKey);
+      const hiddenCount = entry.rows.length - rows.length;
+      const revealed = hiddenCount > 0 && this.revealed.has(storageKey);
+      const matching = new Set(rows.map((row) => row.pullRequest.number));
       const listed = new Map(entry.rows.map((row) => [row.pullRequest.number, row.pullRequest]));
       const awaiting = entry.rows.map((row) => statuses.get(row.pullRequest.number)).filter((status) => status.kind === 'awaiting');
       const oldest = awaiting.reduce((worst, status) => (!worst || status.hours > worst.hours ? status : worst), null);
@@ -323,8 +735,9 @@
         const tone = !status ? `kind-${member.state === 'open' ? 'unlisted' : member.state}` : status.kind === 'awaiting' ? `level-${status.level}` : `kind-${status.kind}`;
         const note = status && status.kind === 'bot_approved' ? ` (approved by ${status.botApprovals.join(', ')})` : '';
         const description = pullRequest ? `${member.position}. #${member.number} ${pullRequest.title}${note}` : `${member.position}. #${member.number} (${member.state === 'open' ? 'not in this list' : member.state})`;
+        const dimmed = refining && pullRequest && !matching.has(member.number);
         return element('a', {
-          className: `ghs-segment ghs-segment--${tone}${pullRequest && isUnread(pullRequest) ? ' is-unread' : ''}`,
+          className: `ghs-segment ghs-segment--${tone}${pullRequest && isUnread(pullRequest) ? ' is-unread' : ''}${dimmed ? ' is-dimmed' : ''}`,
           attributes: { href: `/${owner}/${repository}/pull/${member.number}`, title: description, 'aria-label': description },
         });
       });
@@ -358,6 +771,8 @@
           ]),
           element('div', { className: 'ghs-meta' }, [
             `${stack.members.length} PRs`,
+            hiddenCount > 0 ? separator() : null,
+            hiddenCount > 0 ? element('span', { className: 'ghs-meta-match', text: `${rows.length} of ${entry.rows.length} match` }) : null,
             separator(),
             `${awaiting.length} awaiting review`,
             unread > 0 ? separator() : null,
@@ -375,20 +790,36 @@
         element('div', { className: 'ghs-stack-signals' }, oldest ? statusPill(oldest) : element('span', { className: 'ghs-status ghs-status--muted', text: 'Nothing waiting' })),
       ]);
       header.addEventListener('click', (event) => {
-        if (event.target.closest('a')) return;
-        this.toggleStack(stack, !expanded);
+        if (event.target.closest('a, [role="button"]')) return;
+        if (!refining) this.toggleStack(stack, !expanded);
       });
+      if (refining) chevron.disabled = true;
 
       const group = element('div', { className: `ghs-stack${expanded ? ' is-expanded' : ''}`, attributes: { role: 'listitem' } }, [header]);
       if (expanded) {
         const body = element('div', { className: 'ghs-stack-rows' });
-        rows.forEach((row, index) => {
-          const gutter = element('div', { className: `ghs-gutter${index === 0 ? ' is-first' : ''}${index === rows.length - 1 ? ' is-last' : ''}` }, [
+        const shown = revealed ? entry.rows : rows;
+        shown.forEach((row, index) => {
+          const gutter = element('div', { className: `ghs-gutter${index === 0 ? ' is-first' : ''}${index === shown.length - 1 ? ' is-last' : ''}` }, [
             element('span', { className: 'ghs-gutter-line' }),
             element('span', { className: 'ghs-gutter-node', text: String(row.position) }),
           ]);
-          body.append(pullRequestRow(row.pullRequest, statuses.get(row.pullRequest.number), { gutter }));
+          const node = pullRequestRow(row.pullRequest, statuses.get(row.pullRequest.number), { gutter });
+          if (!matching.has(row.pullRequest.number)) node.classList.add('is-dimmed');
+          body.append(node);
         });
+        if (hiddenCount > 0) {
+          const toggle = element('button', { className: 'ghs-reveal', attributes: { type: 'button', 'aria-expanded': String(revealed) } }, [
+            octicon(revealed ? 'chevron-up' : 'chevron-down'),
+            revealed ? 'Show only the matches' : `Show the other ${hiddenCount} in this stack`,
+          ]);
+          toggle.addEventListener('click', () => {
+            if (revealed) this.revealed.delete(storageKey);
+            else this.revealed.add(storageKey);
+            this.render();
+          });
+          body.append(toggle);
+        }
         group.append(body);
       }
       return group;

@@ -1,7 +1,9 @@
 (function (root) {
   const PULL_REQUEST_FIELDS = `
-    number title url isDraft isReadByViewer state createdAt headRefName baseRefName
+    number title url isDraft isReadByViewer state createdAt updatedAt headRefName baseRefName reviewDecision
     author { login avatarUrl(size: 48) url __typename }
+    assignees(first: 10) { nodes { login avatarUrl(size: 48) } }
+    reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } ... on Bot { login } ... on Team { slug combinedSlug } } } }
     comments { totalCount }
     labels(first: 6) { nodes { name color } }
     commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
@@ -39,8 +41,9 @@
   `;
 
   const SEARCH_QUERY = `
-    query ($search: String!, $after: String) {
-      search(query: $search, type: ISSUE, first: 50, after: $after) {
+    query ($search: String!, $after: String, $first: Int!) {
+      viewer { login }
+      search(query: $search, type: ISSUE, first: $first, after: $after) {
         issueCount
         pageInfo { hasNextPage endCursor }
         nodes { ... on PullRequest { ${PULL_REQUEST_FIELDS} } }
@@ -48,7 +51,8 @@
     }
   `;
 
-  const MAXIMUM_SEARCH_PAGES = 4;
+  const MAXIMUM_SEARCH_RESULTS = 200;
+  const PAGE_SIZES = { first: 25, next: 50, smallest: 10 };
   const MAXIMUM_STACK_PAGES = 5;
   const TOKEN_ERRORS = new Set(['no_token', 'bad_token']);
 
@@ -91,7 +95,7 @@
   }
 
   function writeLocal(values) {
-    callExtension(() => chrome.storage.local.set(values)).catch(() => {});
+    return callExtension(() => chrome.storage.local.set(values)).catch(() => {});
   }
 
   async function send(message) {
@@ -109,18 +113,48 @@
     return text.trim();
   }
 
-  async function searchPullRequests(owner, repository, query) {
+  // onPage, when given, gets the pull requests found so far after each page, so a list can show them early.
+  async function searchPullRequests(owner, repository, query, onPage) {
     const pullRequests = [];
     let after = null;
     let total = 0;
-    for (let page = 0; page < MAXIMUM_SEARCH_PAGES; page += 1) {
-      const data = await send({ type: 'graphql', query: SEARCH_QUERY, variables: { search: searchText(owner, repository, query), after } });
+    let viewer = null;
+    // A small first page shows something quickly; GitHub times out (502) on heavy pages, so those are asked for again smaller.
+    let size = PAGE_SIZES.first;
+    while (pullRequests.length < MAXIMUM_SEARCH_RESULTS) {
+      let data;
+      try {
+        data = await send({ type: 'graphql', query: SEARCH_QUERY, variables: { search: searchText(owner, repository, query), after, first: size } });
+      } catch (error) {
+        if (TOKEN_ERRORS.has(error.code) || error.code === CONTEXT_INVALIDATED) throw error;
+        if (size > PAGE_SIZES.smallest) {
+          size = Math.max(PAGE_SIZES.smallest, Math.floor(size / 2));
+          continue;
+        }
+        if (pullRequests.length === 0) throw error;
+        return { pullRequests, total, viewer, incomplete: true };
+      }
+      size = PAGE_SIZES.next;
       total = data.search.issueCount;
+      viewer = data.viewer ? data.viewer.login : viewer;
       pullRequests.push(...data.search.nodes.filter((node) => node && node.number));
       if (!data.search.pageInfo.hasNextPage) break;
+      if (onPage) onPage({ pullRequests: [...pullRequests], total, viewer });
       after = data.search.pageInfo.endCursor;
     }
-    return { pullRequests, total };
+    return { pullRequests, total, viewer };
+  }
+
+  const STATE_COUNTS = { open: 'is:open', merged: 'is:merged', closed: 'is:closed is:unmerged', all: '' };
+
+  // How many pull requests each state tab holds for the GitHub-side part of a query, in one request.
+  async function countPullRequests(owner, repository, terms) {
+    const entries = Object.entries(STATE_COUNTS);
+    const variables = Object.fromEntries(entries.map(([state, qualifier]) => [state, searchText(owner, repository, `${qualifier} ${terms}`)]));
+    const declarations = entries.map(([state]) => `$${state}: String!`).join(', ');
+    const fields = entries.map(([state]) => `${state}: search(query: $${state}, type: ISSUE, first: 1) { issueCount }`).join('\n');
+    const data = await send({ type: 'graphql', query: `query (${declarations}) { ${fields} }`, variables });
+    return Object.fromEntries(entries.map(([state]) => [state, data[state].issueCount]));
   }
 
   async function listStacks(owner, repository) {
@@ -202,6 +236,6 @@
   }
 
   root.GitHubStacks = Object.assign(root.GitHubStacks || {}, {
-    api: { searchPullRequests, listStacks, stackForPullRequest, pullRequestsByNumber, activity, settings, openOptions, extensionAlive, readLocal, writeLocal, CONTEXT_INVALIDATED },
+    api: { searchPullRequests, countPullRequests, listStacks, stackForPullRequest, pullRequestsByNumber, activity, settings, openOptions, extensionAlive, readLocal, writeLocal, CONTEXT_INVALIDATED },
   });
 })(globalThis);
