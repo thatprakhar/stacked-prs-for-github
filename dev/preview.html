@@ -50,7 +50,7 @@
     <script src="demo.js"></script>
     <script>
       // ?demo uses dev/demo.js; otherwise ?host=&repo= reads live data through dev/server.js.
-      // ?q= search (the extension keeps it in sync), ?pr= pull request page, ?expand=stack-208,stack-215, ?theme=dark,
+      // ?q= search (the extension keeps it in sync), ?issues the issue list, ?pr= pull request page, ?expand=stack-208,stack-215, ?theme=dark,
       // ?hover=<selector> hovers that element after loading (to show the what-changed popover),
       // ?type=<text> types into the search after loading (to show its suggestions).
       const parameters = new URLSearchParams(location.search);
@@ -58,6 +58,7 @@
       const host = demo ? 'github.com' : parameters.get('host') || 'github.com';
       const [owner, repository] = (demo ? 'acme/storefront' : parameters.get('repo') || 'owner/repository').split('/');
       const number = parameters.get('pr');
+      const issues = parameters.has('issues');
       const theme = parameters.get('theme') === 'dark' ? 'dark' : 'light';
       document.documentElement.setAttribute('data-color-mode', theme);
       document.documentElement.setAttribute(`data-${theme}-theme`, theme);
@@ -78,10 +79,10 @@
         page.innerHTML = `
           <div role="search" aria-label="Pull requests"><input class="search" id="search" /></div>
           <div class="box"><h2 class="sr-only">Pull requests</h2><div class="box-header"><strong>Open</strong><span class="muted">Closed</span></div><ul class="native" id="native"></ul></div>`;
-        page.querySelector('#search').value = parameters.get('q') || 'is:pr is:open';
+        page.querySelector('#search').value = parameters.get('q') || (issues ? 'is:issue is:open' : 'is:pr is:open');
         for (const link of (parameters.get('rows') || '201,202').split(',')) {
           const item = document.createElement('li');
-          const anchor = Object.assign(document.createElement('a'), { href: `https://${host}/${owner}/${repository}/pull/${link}`, textContent: `Native row #${link}` });
+          const anchor = Object.assign(document.createElement('a'), { href: `https://${host}/${owner}/${repository}/${issues ? 'issues' : 'pull'}/${link}`, textContent: `Native row #${link}` });
           item.append(anchor);
           document.getElementById('native').append(item);
         }
@@ -135,7 +136,7 @@
         typeOnce.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
       }
       globalThis.GitHubStacks = {
-        testLocation: { host, pathname: number ? `/${owner}/${repository}/pull/${number}` : `/${owner}/${repository}/pulls` },
+        testLocation: { host, pathname: number ? `/${owner}/${repository}/pull/${number}` : `/${owner}/${repository}/${issues ? 'issues' : 'pulls'}` },
       };
     </script>
     <script src="../src/shared/work-hours.js"></script>
@@ -149,6 +150,7 @@
     <script src="../src/content/activity-popover.js"></script>
     <script src="../src/content/search-bar.js"></script>
     <script src="../src/content/list-view.js"></script>
+    <script src="../src/content/issue-view.js"></script>
     <script src="../src/content/stack-navigator.js"></script>
     <script src="../src/content/main.js"></script>
   </body>

@@ -7,9 +7,24 @@
     reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } ... on Bot { login } ... on Team { slug combinedSlug } } } }
     comments { totalCount }
     labels(first: 6) { nodes { name color } }
+    milestone { title }
     commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
     timelineItems(itemTypes: [READY_FOR_REVIEW_EVENT], last: 1) { nodes { ... on ReadyForReviewEvent { createdAt } } }
     reviews(first: 50) { nodes { state author { login __typename } } }
+  `;
+
+  const ISSUE_FIELDS = `
+    number title url state stateReason isReadByViewer createdAt updatedAt closedAt bodyText
+    author { login avatarUrl(size: 48) url __typename }
+    assignees(first: 10) { nodes { login avatarUrl(size: 48) } }
+    comments { totalCount }
+    labels(first: 6) { nodes { name color } }
+    milestone { title }
+    issueType { name color }
+    parent { number title url }
+    subIssuesSummary { total completed percentCompleted }
+    issueDependenciesSummary { blockedBy totalBlockedBy blocking }
+    closedByPullRequestsReferences(first: 5, includeClosedPrs: true) { totalCount nodes { number title url state isDraft } }
   `;
 
   const ACTOR = 'login avatarUrl(size: 40)';
@@ -41,16 +56,25 @@
     }
   `;
 
-  const SEARCH_QUERY = `
-    query ($search: String!, $after: String, $first: Int!) {
-      viewer { login }
-      search(query: $search, type: ISSUE, first: $first, after: $after) {
-        issueCount
-        pageInfo { hasNextPage endCursor }
-        nodes { ... on PullRequest { ${PULL_REQUEST_FIELDS} } }
+  // kind: 'pull_request' or 'issue'; GitHub searches both with type ISSUE.
+  const KINDS = {
+    pull_request: { type: 'PullRequest', fields: PULL_REQUEST_FIELDS, qualifier: 'is:pr', implied: /(^|\s)(is:(pr|pull-request)|type:pr)(\s|$)/ },
+    issue: { type: 'Issue', fields: ISSUE_FIELDS, qualifier: 'is:issue', implied: /(^|\s)(is:issue|type:issue)(\s|$)/ },
+  };
+
+  function searchQuery(kind) {
+    const { type, fields } = KINDS[kind];
+    return `
+      query ($search: String!, $after: String, $first: Int!) {
+        viewer { login }
+        search(query: $search, type: ISSUE, first: $first, after: $after) {
+          issueCount
+          pageInfo { hasNextPage endCursor }
+          nodes { ... on ${type} { ${fields} } }
+        }
       }
-    }
-  `;
+    `;
+  }
 
   const MAXIMUM_SEARCH_RESULTS = 200;
   const PAGE_SIZES = { first: 25, next: 50, smallest: 10 };
@@ -106,52 +130,56 @@
     return response.data;
   }
 
-  function searchText(owner, repository, query) {
+  function searchText(owner, repository, query, kind = 'pull_request') {
     let text = query.trim();
     if (!/(^|\s)repo:/.test(text)) text += ` repo:${owner}/${repository}`;
-    if (!/(^|\s)is:(pr|pull-request)(\s|$)/.test(text) && !/(^|\s)type:pr(\s|$)/.test(text)) text += ' is:pr';
+    if (!KINDS[kind].implied.test(text)) text += ` ${KINDS[kind].qualifier}`;
     if (!/(^|\s)sort:/.test(text)) text += ' sort:created-desc';
     return text.trim();
   }
 
-  // onPage, when given, gets the pull requests found so far after each page, so a list can show them early.
-  async function searchPullRequests(owner, repository, query, onPage) {
-    const pullRequests = [];
+  // onPage, when given, gets the pull requests or issues found so far after each page, so a list can show them early.
+  async function searchItems(owner, repository, query, { kind = 'pull_request', onPage } = {}) {
+    const items = [];
+    const graphql = searchQuery(kind);
     let after = null;
     let total = 0;
     let viewer = null;
     // A small first page shows something quickly; GitHub times out (502) on heavy pages, so those are asked for again smaller.
     let size = PAGE_SIZES.first;
-    while (pullRequests.length < MAXIMUM_SEARCH_RESULTS) {
+    while (items.length < MAXIMUM_SEARCH_RESULTS) {
       let data;
       try {
-        data = await send({ type: 'graphql', query: SEARCH_QUERY, variables: { search: searchText(owner, repository, query), after, first: size } });
+        data = await send({ type: 'graphql', query: graphql, variables: { search: searchText(owner, repository, query, kind), after, first: size } });
       } catch (error) {
         if (TOKEN_ERRORS.has(error.code) || error.code === CONTEXT_INVALIDATED) throw error;
         if (size > PAGE_SIZES.smallest) {
           size = Math.max(PAGE_SIZES.smallest, Math.floor(size / 2));
           continue;
         }
-        if (pullRequests.length === 0) throw error;
-        return { pullRequests, total, viewer, incomplete: true };
+        if (items.length === 0) throw error;
+        return { items, total, viewer, incomplete: true };
       }
       size = PAGE_SIZES.next;
       total = data.search.issueCount;
       viewer = data.viewer ? data.viewer.login : viewer;
-      pullRequests.push(...data.search.nodes.filter((node) => node && node.number));
+      items.push(...data.search.nodes.filter((node) => node && node.number));
       if (!data.search.pageInfo.hasNextPage) break;
-      if (onPage) onPage({ pullRequests: [...pullRequests], total, viewer });
+      if (onPage) onPage({ items: [...items], total, viewer });
       after = data.search.pageInfo.endCursor;
     }
-    return { pullRequests, total, viewer };
+    return { items, total, viewer };
   }
 
-  const STATE_COUNTS = { open: 'is:open', merged: 'is:merged', closed: 'is:closed is:unmerged', all: '' };
+  const STATE_COUNTS = {
+    pull_request: { open: 'is:open', merged: 'is:merged', closed: 'is:closed is:unmerged', all: '' },
+    issue: { open: 'is:open', closed: 'is:closed', all: '' },
+  };
 
-  // How many pull requests each state tab holds for the GitHub-side part of a query, in one request.
-  async function countPullRequests(owner, repository, terms) {
-    const entries = Object.entries(STATE_COUNTS);
-    const variables = Object.fromEntries(entries.map(([state, qualifier]) => [state, searchText(owner, repository, `${qualifier} ${terms}`)]));
+  // How many pull requests or issues each state tab holds for the GitHub-side part of a query, in one request.
+  async function countItems(owner, repository, terms, kind = 'pull_request') {
+    const entries = Object.entries(STATE_COUNTS[kind]);
+    const variables = Object.fromEntries(entries.map(([state, qualifier]) => [state, searchText(owner, repository, `${qualifier} ${terms}`, kind)]));
     const declarations = entries.map(([state]) => `$${state}: String!`).join(', ');
     const fields = entries.map(([state]) => `${state}: search(query: $${state}, type: ISSUE, first: 1) { issueCount }`).join('\n');
     const data = await send({ type: 'graphql', query: `query (${declarations}) { ${fields} }`, variables });
@@ -237,6 +265,6 @@
   }
 
   root.GitHubStacks = Object.assign(root.GitHubStacks || {}, {
-    api: { searchPullRequests, countPullRequests, listStacks, stackForPullRequest, pullRequestsByNumber, activity, settings, openOptions, extensionAlive, readLocal, writeLocal, CONTEXT_INVALIDATED },
+    api: { searchItems, countItems, listStacks, stackForPullRequest, pullRequestsByNumber, activity, settings, openOptions, extensionAlive, readLocal, writeLocal, CONTEXT_INVALIDATED },
   });
 })(globalThis);

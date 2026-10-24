@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Stacked PRs for GitHub",
   "short_name": "Stacked PRs",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "See stacked pull requests as stacks on GitHub, with each one’s author, review wait in work hours and an SLA pill.",
   "minimum_chrome_version": "111",
   "icons": {
@@ -49,6 +49,7 @@
         "src/content/activity-popover.js",
         "src/content/search-bar.js",
         "src/content/list-view.js",
+        "src/content/issue-view.js",
         "src/content/stack-navigator.js",
         "src/content/main.js"
       ],

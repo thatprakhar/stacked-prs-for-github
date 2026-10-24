@@ -204,6 +204,6 @@
   }
 
   root.GitHubStacks = Object.assign(root.GitHubStacks || {}, {
-    render: { element, statusPill, stateIcon, pullRequestState, avatar, pullRequestRow, formatHours, separator, isUnread, unreadMarker, pullRequestUnreadMarker, LEVEL_TEXT, LEVEL_TONE },
+    render: { element, statusPill, stateIcon, pullRequestState, avatar, labelChip, pullRequestRow, formatHours, separator, isUnread, unreadMarker, pullRequestUnreadMarker, LEVEL_TEXT, LEVEL_TONE },
   });
 })(globalThis);

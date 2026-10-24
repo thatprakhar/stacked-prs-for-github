@@ -8,7 +8,8 @@
 
   const STATES = ['open', 'merged', 'closed'];
   const STATE_VALUES = { open: ['open'], closed: ['merged', 'closed'], merged: ['merged'], unmerged: ['open', 'closed'] };
-  const NO_OP = new Set(['pr', 'pull-request']);
+  // Implied by the page: every query on the pull request list is about pull requests, on the issue list about issues.
+  const NO_OP = new Set(['pr', 'pull-request', 'issue']);
 
   const SORTS = {
     'created-desc': 'Newest',
@@ -57,7 +58,9 @@
       ['label', 'No labels'],
       ['assignee', 'Nobody assigned'],
       ['review-requested', 'No review requested'],
+      ['milestone', 'No milestone'],
     ],
+    linked: [['pr', 'Has a linked pull request']],
     sort: Object.entries(SORTS),
   };
 
@@ -76,8 +79,10 @@
     ['draft', 'Draft or not'],
     ['no', 'Missing a label, assignee or review request'],
     ['sort', 'Order'],
+    ['milestone', 'In the milestone'],
+    ['type', 'Issue type'],
+    ['linked', 'Has a linked pull request'],
     ['involves', 'Author, assignee, mentioned or commenter (searched on GitHub)'],
-    ['milestone', 'Milestone (searched on GitHub)'],
   ];
 
   // Qualifiers GitHub's search knows that this module does not evaluate: they are sent to GitHub as they are.
@@ -85,12 +90,13 @@
     'involves', 'mentions', 'commenter', 'milestone', 'project', 'team-review-requested', 'created', 'updated', 'merged',
     'closed', 'comments', 'in', 'language', 'linked', 'team', 'archived', 'reactions', 'interactions', 'repo', 'org',
     'user', 'type', 'label', 'author', 'assignee', 'review-requested', 'user-review-requested', 'reviewed-by', 'review',
-    'status', 'head', 'base', 'draft', 'is', 'state', 'no', 'sort', 'sla',
+    'status', 'head', 'base', 'draft', 'is', 'state', 'no', 'sort', 'sla', 'reason', 'parent-issue', 'has', 'blocked-by',
+    'blocking',
   ]);
   const PEOPLE_KEYS = new Set(['author', 'assignee', 'review-requested', 'user-review-requested', 'reviewed-by']);
-  const LOCAL_KEYS = new Set([...PEOPLE_KEYS, 'label', 'head', 'base']);
+  const LOCAL_KEYS = new Set([...PEOPLE_KEYS, 'label', 'head', 'base', 'milestone']);
   // Local qualifiers whose meaning on GitHub is the same, so they can be sent to GitHub to search beyond what is loaded.
-  const SAME_ON_GITHUB = new Set([...LOCAL_KEYS, 'status', 'draft']);
+  const SAME_ON_GITHUB = new Set([...LOCAL_KEYS, 'status', 'draft', 'type', 'linked']);
 
   function unquote(value) {
     return value.replace(/"/g, '');
@@ -167,7 +173,8 @@
     if (key === 'sort') return 'sort';
     if ((key === 'is' || key === 'state') && values.every((value) => STATE_VALUES[value])) return 'state';
     if (key === 'is' && values.every((value) => NO_OP.has(value))) return 'ignore';
-    if (key === 'type' && values.every((value) => value === 'pr')) return 'ignore';
+    if (key === 'type') return values.every((value) => NO_OP.has(value)) ? 'ignore' : values.some((value) => NO_OP.has(value)) ? 'github' : 'local';
+    if (key === 'linked') return values.every((value) => value === 'pr') ? 'local' : 'github';
     if (key === 'is') return values.every((value) => ['draft', 'unread', 'stacked'].includes(value)) ? 'local' : 'github';
     if (key === 'no') return values.every((value) => knownValue('no', value)) ? 'local' : 'github';
     if (key === 'review' || key === 'status' || key === 'sla' || key === 'draft') {
@@ -292,7 +299,22 @@
   }
 
   function haystack(pullRequest) {
-    return [pullRequest.title, `#${pullRequest.number}`, pullRequest.headRefName, pullRequest.baseRefName, login(pullRequest.author), ...labelNames(pullRequest)].join('\n').toLowerCase();
+    return [pullRequest.title, `#${pullRequest.number}`, pullRequest.headRefName, pullRequest.baseRefName, login(pullRequest.author), ...labelNames(pullRequest), pullRequest.bodyText]
+      .filter(Boolean)
+      .join('\n')
+      .toLowerCase();
+  }
+
+  function milestoneTitle(item) {
+    return item.milestone && item.milestone.title ? item.milestone.title.toLowerCase() : null;
+  }
+
+  function issueTypeName(item) {
+    return item.issueType && item.issueType.name ? item.issueType.name.toLowerCase() : null;
+  }
+
+  function linkedPullRequests(item) {
+    return (item.closedByPullRequestsReferences && item.closedByPullRequestsReferences.nodes) || [];
   }
 
   function matchesText(pullRequest, value) {
@@ -352,10 +374,19 @@
         const status = context.statusOf(pullRequest);
         return status.kind === 'awaiting' && values.some((value) => normalize('sla', value) === status.level.replace('_', '-'));
       }
+      case 'milestone':
+        return values.some((value, index) => within([milestoneTitle(pullRequest)].filter(Boolean), value, index));
+      case 'type':
+        return values.some((value, index) => within([issueTypeName(pullRequest)].filter(Boolean), value, index));
+      case 'linked':
+        return linkedPullRequests(pullRequest).length > 0;
       case 'no':
-        return values.some((value) =>
-          value === 'label' ? labelNames(pullRequest).length === 0 : value === 'assignee' ? assigneeLogins(pullRequest).length === 0 : requestedReviewers(pullRequest, false).length === 0,
-        );
+        return values.some((value) => {
+          if (value === 'label') return labelNames(pullRequest).length === 0;
+          if (value === 'assignee') return assigneeLogins(pullRequest).length === 0;
+          if (value === 'milestone') return milestoneTitle(pullRequest) === null;
+          return requestedReviewers(pullRequest, false).length === 0;
+        });
       case 'is':
         return values.some((value) => {
           if (value === 'draft') return Boolean(pullRequest.isDraft);
@@ -416,9 +447,17 @@
     'reviewed-by': (pullRequest) => [...new Set(reviewerLogins(pullRequest))],
     is: (pullRequest, context) => [pullRequest.isDraft && 'draft', pullRequest.isReadByViewer === false && 'unread', context.isStacked(pullRequest) && 'stacked'].filter(Boolean),
     no: (pullRequest) =>
-      [labelNames(pullRequest).length === 0 && 'label', assigneeLogins(pullRequest).length === 0 && 'assignee', requestedReviewers(pullRequest, false).length === 0 && 'review-requested'].filter(Boolean),
+      [
+        labelNames(pullRequest).length === 0 && 'label',
+        assigneeLogins(pullRequest).length === 0 && 'assignee',
+        requestedReviewers(pullRequest, false).length === 0 && 'review-requested',
+        milestoneTitle(pullRequest) === null && 'milestone',
+      ].filter(Boolean),
     head: (pullRequest) => [pullRequest.headRefName],
     base: (pullRequest) => [pullRequest.baseRefName],
+    milestone: (item) => (item.milestone ? [item.milestone.title] : []),
+    type: (item) => (item.issueType ? [item.issueType.name] : []),
+    linked: (item) => (linkedPullRequests(item).length > 0 ? ['pr'] : []),
   };
 
   function facetCounts(pullRequests, filters, key, context) {

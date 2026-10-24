@@ -9,14 +9,11 @@
   const NOTHING = { key: 'none', handled: new Set() };
   const REVIEW_LABELS = { none: 'Not reviewed', approved: 'Approved', changes_requested: 'Changes requested', commented: 'Commented', 'bot-approved': 'Bot approved', required: 'Review required' };
 
-  function pullRequestLinkPattern(route) {
-    return new RegExp(`^/${route.owner}/${route.repository}/pull/\\d+/?$`, 'i');
-  }
-
-  function findNativeList(route, ownRoot) {
-    const pattern = pullRequestLinkPattern(route);
-    const links = [...document.querySelectorAll('a[href*="/pull/"]')].filter((link) => {
-      if (ownRoot.contains(link) || link.closest('.ghs-navigator, .ghs-floating')) return false;
+  // segment: 'pull' for the pull request list, 'issues' for the issue list.
+  function findNativeList(route, ownRoot, segment = 'pull') {
+    const pattern = new RegExp(`^/${route.owner}/${route.repository}/${segment}/\\d+/?$`, 'i');
+    const links = [...document.querySelectorAll(`a[href*="/${segment}/"]`)].filter((link) => {
+      if (ownRoot.contains(link) || link.closest('.ghs-navigator, .ghs-floating, [aria-label*="pinned" i]')) return false;
       try {
         return pattern.test(new URL(link.href, location.href).pathname);
       } catch {
@@ -24,6 +21,13 @@
       }
     });
     if (links.length === 0) return null;
+    // The list is the one holding the most rows that link to items; pinned issues and mentions sit elsewhere.
+    const lists = new Map();
+    for (const link of links) {
+      const row = link.closest('li, [role="listitem"], [role="row"], .js-issue-row');
+      if (row && row.parentElement) lists.set(row.parentElement, (lists.get(row.parentElement) || 0) + 1);
+    }
+    if (lists.size > 0) return [...lists].sort((left, right) => right[1] - left[1])[0][0];
     const numbers = new Set(links.map((link) => new URL(link.href, location.href).pathname.split('/')[4]));
     let container = links[0];
     if (numbers.size === 1) {
@@ -41,7 +45,7 @@
       (candidate) =>
         !ownRoot.contains(candidate) &&
         !candidate.closest('.ghs-floating') &&
-        (/(^|\s)(is|state):(pr|open|closed|merged)(\s|$)/.test(candidate.value) || /pulls.*filter|issues-search/i.test(candidate.id)),
+        (/(^|\s)(is|state):(pr|issue|open|closed|merged)(\s|$)/.test(candidate.value) || /pulls.*filter|issues.*filter|issues-search/i.test(candidate.id)),
     );
   }
 
@@ -59,7 +63,7 @@
     return chrome;
   }
 
-  // GitHub writes is:pr into its queries; every query here is about pull requests, so it is left out.
+  // GitHub writes is:pr (or is:issue) into its queries; the page already says which, so it is left out.
   function tidy(text) {
     return search
       .tokenize(text)
@@ -85,8 +89,8 @@
 
   class ListView {
     constructor() {
-      this.root = element('section', { className: 'ghs-root', attributes: { 'aria-label': 'Stacked pull requests' } });
-      this.searchBar = new SearchBar();
+      this.root = element('section', { className: 'ghs-root', attributes: { 'aria-label': this.label() } });
+      this.searchBar = this.createSearchBar();
       this.body = element('div', { className: 'ghs-body' });
       this.root.append(this.searchBar.node, this.body);
       this.native = null;
@@ -107,7 +111,7 @@
       this.enabled = true;
       this.expanded = new Set();
       this.revealed = new Set();
-      this.ready = Promise.all([api.readLocal('stackedView', true), api.readLocal('expandedStacks', [])]).then(([enabled, expanded]) => {
+      this.ready = Promise.all([api.readLocal(this.enabledKey(), true), api.readLocal('expandedStacks', [])]).then(([enabled, expanded]) => {
         this.enabled = enabled;
         this.expanded = new Set(expanded);
       });
@@ -115,10 +119,43 @@
       document.addEventListener('visibilitychange', () => this.tick(REFRESH_ON_RETURN_MILLISECONDS));
     }
 
+    // What differs between the pull request list and the issue list; IssueListView overrides these.
+    label() {
+      return 'Stacked pull requests';
+    }
+
+    noun() {
+      return 'pull requests';
+    }
+
+    enabledKey() {
+      return 'stackedView';
+    }
+
+    createSearchBar() {
+      return new SearchBar();
+    }
+
+    linkSegment() {
+      return 'pull';
+    }
+
+    fetchItems(owner, repository, query, onPage) {
+      return api.searchItems(owner, repository, query, { kind: 'pull_request', onPage });
+    }
+
+    fetchStacks(owner, repository) {
+      return api.listStacks(owner, repository);
+    }
+
+    fetchCounts(owner, repository, terms) {
+      return api.countItems(owner, repository, terms, 'pull_request');
+    }
+
     sync(route) {
       this.route = route;
       const key = `${route.host}/${route.owner}/${route.repository}`;
-      const native = findNativeList(route, this.root);
+      const native = findNativeList(route, this.root, this.linkSegment());
       if (native) {
         if (this.native && this.native !== native) this.native.classList.remove('ghs-native-hidden');
         if (this.native !== native || this.chrome.some((node) => !node.isConnected)) {
@@ -169,6 +206,7 @@
     }
 
     unmount() {
+      if (!this.root.isConnected && !this.native) return;
       this.searchBar.close();
       this.root.remove();
       if (this.native) this.native.classList.remove('ghs-native-hidden');
@@ -247,7 +285,7 @@
     }
 
     result() {
-      if (this.request.key === NOTHING.key) return { pullRequests: [], total: 0, truncated: false, fetchedAt: Date.now() };
+      if (this.request.key === NOTHING.key) return { items: [], total: 0, truncated: false, fetchedAt: Date.now() };
       return this.cache.get(this.request.key) || this.shown;
     }
 
@@ -276,17 +314,17 @@
         await this.ready;
         const [settings, result, stacks, counts] = await Promise.all([
           api.settings(),
-          api.searchPullRequests(owner, repository, `${request.query} sort:${request.sort}`, (partial) => {
+          this.fetchItems(owner, repository, `${request.query} sort:${request.sort}`, (partial) => {
             if (key !== this.key) return;
             this.cache.set(request.key, { ...partial, sort: request.sort, truncated: true, partial: true, fetchedAt: Date.now() });
             this.viewer = partial.viewer || this.viewer;
             if (request.key === this.request.key) this.render();
           }),
-          this.stacks && !quiet ? this.stacks : api.listStacks(owner, repository),
-          this.counts.has(countsKey) && !quiet ? this.counts.get(countsKey) : api.countPullRequests(owner, repository, countsKey).catch(() => null),
+          this.stacks && !quiet ? this.stacks : this.fetchStacks(owner, repository),
+          this.counts.has(countsKey) && !quiet ? this.counts.get(countsKey) : this.fetchCounts(owner, repository, countsKey).catch(() => null),
         ]);
         if (key !== this.key) return;
-        const truncated = result.total > result.pullRequests.length;
+        const truncated = result.total > result.items.length;
         this.cache.set(request.key, { ...result, sort: request.sort, truncated, fetchedAt: Date.now() });
         if (!truncated && !request.deep) this.completeScopes.set(request.query, request.key);
         if (counts) this.counts.set(countsKey, counts);
@@ -317,7 +355,7 @@
 
     async setEnabled(enabled) {
       this.enabled = enabled;
-      await api.writeLocal({ stackedView: enabled });
+      await api.writeLocal({ [this.enabledKey()]: enabled });
       if (!enabled) {
         // Hand the query to GitHub's own list, which only reads it when the page loads.
         const input = nativeSearchInput(this.root);
@@ -393,20 +431,18 @@
       const settings = this.settings;
       const now = Date.now();
       const plan = search.planQuery(this.fullQuery());
-      const statuses = new Map(result.pullRequests.map((pullRequest) => [pullRequest.number, reviewStatus(pullRequest, now, settings)]));
+      const statuses = new Map(result.items.map((pullRequest) => [pullRequest.number, reviewStatus(pullRequest, now, settings)]));
       const statusOf = (pullRequest) => statuses.get(pullRequest.number);
-      const sorted = search.sortPullRequests(result.pullRequests, plan.sort, statusOf);
+      const sorted = search.sortPullRequests(result.items, plan.sort, statusOf);
       const entries = groupPullRequests(sorted, this.stacks || []);
       const stacked = new Set();
       for (const entry of entries) {
         if (entry.type === 'stack') for (const row of entry.rows) stacked.add(row.pullRequest.number);
         else if (entry.stack) stacked.add(entry.pullRequest.number);
       }
-      // The qualifier still being typed matches as a prefix, so the list narrows instead of emptying.
-      const draftTokens = /\s$/.test(this.draft) ? [] : search.tokenize(this.draft);
-      const typing = draftTokens.length > 0 && draftTokens[draftTokens.length - 1].key ? draftTokens[draftTokens.length - 1] : null;
+      const typing = this.typingToken();
       const context = { viewer: this.viewer, statusOf, isStacked: (pullRequest) => stacked.has(pullRequest.number), handled: this.request.handled, partial: typing ? typing.raw : null };
-      const matched = new Set(result.pullRequests.filter((pullRequest) => search.matchesAll(pullRequest, plan.filters, context)).map((pullRequest) => pullRequest.number));
+      const matched = new Set(result.items.filter((pullRequest) => search.matchesAll(pullRequest, plan.filters, context)).map((pullRequest) => pullRequest.number));
       const rank = new Map(sorted.map((pullRequest, index) => [pullRequest.number, index]));
       const visible = [];
       for (const entry of entries) {
@@ -415,7 +451,7 @@
         visible.push({ entry, rows, rank: Math.min(...rows.map((row) => rank.get(row.pullRequest.number))) });
       }
       visible.sort((left, right) => left.rank - right.rank);
-      return { result, plan, statuses, context, entries, visible, matched, refining: plan.refining, options: new Map(), vocabulary: null };
+      return { result, plan, committed: this.committedFilters(), statuses, context, entries, visible, matched, refining: plan.refining, options: new Map(), vocabulary: null };
     }
 
     renderContent() {
@@ -430,8 +466,8 @@
         return [
           this.renderMessage(
             needsToken
-              ? [octicon('stack'), ` ${this.error.code === 'no_token' ? 'Add' : 'Replace'} the GitHub token for ${this.route.host} to see stacked pull requests.`]
-              : [octicon('x'), ` Could not load stacked pull requests: ${this.error.message}`],
+              ? [octicon('stack'), ` ${this.error.code === 'no_token' ? 'Add' : 'Replace'} the GitHub token for ${this.route.host} to see ${this.label().toLowerCase()}.`]
+              : [octicon('x'), ` Could not load ${this.label().toLowerCase()}: ${this.error.message}`],
             needsToken
               ? [this.button(this.error.code === 'no_token' ? 'Add a token' : 'Replace the token', () => api.openOptions(), 'gear', 'ghs-button--primary'), this.iconButton('Turn off stacked view', 'x', () => this.setEnabled(false))]
               : [this.button('Retry', () => this.load(), 'sync'), this.iconButton('Turn off stacked view', 'x', () => this.setEnabled(false))],
@@ -440,12 +476,18 @@
       }
       const result = this.result();
       if (!result || !this.settings) {
-        return [this.renderMessage([element('span', { className: 'ghs-spinner', attributes: { 'aria-hidden': 'true' } }), ' Loading stacked pull requests…'], [])];
+        return [this.renderMessage([element('span', { className: 'ghs-spinner', attributes: { 'aria-hidden': 'true' } }), ` Loading ${this.label().toLowerCase()}…`], [])];
       }
       if (result !== this.shown && this.cache.get(this.request.key) === result) this.shown = result;
 
       const view = this.computeView(result);
       this.view = view;
+      return this.renderResults(view, errorNotice);
+    }
+
+    // The toolbar, list and footer for loaded results.
+    renderResults(view, errorNotice) {
+      const { result } = view;
       const { settings } = this;
       const { statuses, visible, matched, refining, entries } = view;
 
@@ -460,8 +502,8 @@
       if (!list.firstChild) list.append(this.renderEmpty(view));
 
       const stackCount = visible.filter(({ entry }) => entry.type === 'stack').length;
-      const slaCounts = search.facetCounts(result.pullRequests, view.plan.filters, 'sla', view.context);
-      const total = result.pullRequests.length;
+      const slaCounts = search.facetCounts(result.items, view.plan.filters, 'sla', view.context);
+      const total = result.items.length;
       const toolbar = element('div', { className: 'ghs-toolbar' }, [
         element('div', { className: 'ghs-toolbar-title' }, [
           octicon('stack'),
@@ -495,24 +537,32 @@
         ]),
       ]);
 
-      const updated = new Date(result.fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
       const workdays = settings.workdays.length === 5 && settings.workdays.every((day, index) => day === index + 1) ? 'Mon–Fri' : `${settings.workdays.length} days a week`;
-      const footer = element('div', { className: 'ghs-footer' }, [
+      const footer = this.renderFooter(result, [
+        `SLA ${settings.slaHours} work hours, at risk after ${settings.atRiskHours}`,
+        separator(),
+        `${workdays} ${settings.workdayStart}:00–${settings.workdayEnd}:00 ${settings.timeZone}`,
+      ]);
+      return [this.stale ? this.renderStaleNotice() : null, errorNotice, toolbar, list, footer].filter(Boolean);
+    }
+
+    // How much loaded, then notes such as the SLA settings, then when it was fetched.
+    renderFooter(result, notes = []) {
+      const total = result.items.length;
+      const updated = new Date(result.fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      return element('div', { className: 'ghs-footer' }, [
         result.partial
           ? element('span', {}, [element('span', { className: 'ghs-spinner ghs-spinner--small', attributes: { 'aria-hidden': 'true' } }), ` Loaded ${formatNumber(total)} of ${formatNumber(result.total)}, loading more…`])
           : result.incomplete
             ? `Showing ${formatNumber(total)} of ${formatNumber(result.total)}; GitHub did not answer for the rest`
             : result.truncated
-            ? `Showing the first ${formatNumber(total)} of ${formatNumber(result.total)}${this.request.deep ? ' found on GitHub' : ''}`
-            : `${formatNumber(result.total)} pull requests${this.request.deep ? ' found on GitHub' : ''}`,
+              ? `Showing the first ${formatNumber(total)} of ${formatNumber(result.total)}${this.request.deep ? ' found on GitHub' : ''}`
+              : `${formatNumber(result.total)} ${this.noun()}${this.request.deep ? ' found on GitHub' : ''}`,
         separator(),
-        `SLA ${settings.slaHours} work hours, at risk after ${settings.atRiskHours}`,
-        separator(),
-        `${workdays} ${settings.workdayStart}:00–${settings.workdayEnd}:00 ${settings.timeZone}`,
-        separator(),
+        ...notes,
+        notes.length > 0 ? separator() : null,
         `Updated ${updated}`,
       ]);
-      return [this.stale ? this.renderStaleNotice() : null, errorNotice, toolbar, list, footer].filter(Boolean);
     }
 
     renderErrorNotice() {
@@ -525,8 +575,8 @@
     renderEmpty(view) {
       const pending = this.pendingTarget();
       const { result } = view;
-      const lines = [element('div', { className: 'ghs-empty-title', text: view.refining || view.result.pullRequests.length > 0 ? 'No pull requests match this search.' : 'No pull requests here.' })];
-      if (pending && pending.deep) lines.push(element('div', { text: `Only the ${formatNumber(result.pullRequests.length)} loaded of ${formatNumber(pending.scopeTotal)} were searched. Press Enter to search all of them on GitHub.` }));
+      const lines = [element('div', { className: 'ghs-empty-title', text: view.refining || view.result.items.length > 0 ? `No ${this.noun()} match this search.` : `No ${this.noun()} here.` })];
+      if (pending && pending.deep) lines.push(element('div', { text: `Only the ${formatNumber(result.items.length)} loaded of ${formatNumber(pending.scopeTotal)} were searched. Press Enter to search all of them on GitHub.` }));
       else if (pending) lines.push(element('div', { text: 'Press Enter to run this search.' }));
       const actions = [];
       if (pending) actions.push(this.button('Search GitHub', () => this.commit(), 'search', 'ghs-button--small'));
@@ -579,9 +629,9 @@
       const view = this.view;
       if (!view) return [];
       if (view.options.has(key)) return view.options.get(key);
-      const { result, plan, context } = view;
-      const pullRequests = result.pullRequests;
-      const facets = search.FACET_KEYS.has(key) ? search.facetCounts(pullRequests, plan.filters, key, context) : null;
+      const { result, context } = view;
+      const pullRequests = result.items;
+      const facets = search.FACET_KEYS.has(key) ? search.facetCounts(pullRequests, view.committed, key, context) : null;
       const counts = facets ? new Map([...facets].map(([value, count]) => [String(value).toLowerCase(), count])) : null;
       const count = (value) => (counts ? counts.get(value.toLowerCase()) || 0 : undefined);
       const vocabulary = view.vocabulary || (view.vocabulary = this.vocabulary(pullRequests));
@@ -631,6 +681,17 @@
       return this.options(key).find((option) => option.value.toLowerCase() === lowered) || null;
     }
 
+    // The qualifier still being typed matches as a prefix, so the list narrows instead of emptying.
+    typingToken() {
+      const tokens = /\s$/.test(this.draft) ? [] : search.tokenize(this.draft);
+      return tokens.length > 0 && tokens[tokens.length - 1].key ? tokens[tokens.length - 1] : null;
+    }
+
+    // Value counts in menus and suggestions use the filters already added, not the text still being typed.
+    committedFilters() {
+      return search.planQuery(this.query).filters;
+    }
+
     fullQuery() {
       return [this.query.trim(), this.draft.trim()].filter(Boolean).join(' ');
     }
@@ -648,7 +709,7 @@
 
     searchModel() {
       const { result, plan, context, matched } = this.view;
-      const pullRequests = result.pullRequests;
+      const pullRequests = result.items;
       const query = this.query;
       const apply = (next) => this.setQuery(next, { commit: true });
       const counts = this.counts.get(this.request.githubTerms ? this.request.githubTerms.join(' ') : '') || null;
@@ -668,19 +729,13 @@
         states: plan.states,
         stateCounts: counts,
         truncated: scope && scope.truncated && !this.request.deep ? scope.total : null,
-        summary: `${matched.size} pull requests match`,
+        summary: `${matched.size} ${this.noun()} match`,
         vocabulary: this.view.vocabulary || (this.view.vocabulary = this.vocabulary(pullRequests)),
-        chips: [
-          chip('unread', 'Updated', 'dot-fill', 'is', 'unread', 'Updated since you last viewed them (is:unread)'),
-          this.viewer ? chip('requested', 'Review requested', 'eye', 'review-requested', '@me', 'Waiting on your review (review-requested:@me)') : null,
-          this.viewer ? chip('mine', 'Mine', 'person', 'author', '@me', 'Opened by you (author:@me)') : null,
-          chip('stacked', 'In a stack', 'stack', 'is', 'stacked', 'Part of a stack (is:stacked)'),
-          chip('drafts', 'Hide drafts', 'git-pull-request-draft', 'is', 'draft', 'Leave out drafts (-is:draft)', true),
-        ].filter(Boolean),
+        chips: this.quickFilters(chip).filter(Boolean),
         sort: {
           value: plan.sort,
           label: search.SORTS[plan.sort],
-          options: Object.entries(search.SORTS).map(([value, label]) => ({ value, label })),
+          options: this.sortChoices().map((value) => ({ value, label: search.SORTS[value] })),
           onChange: (value) => apply(search.setSort(query, value)),
         },
         clearable: search.clearFilters(query) !== query.trim() || this.draft.trim() !== '',
@@ -695,6 +750,21 @@
         onAddDraft: (text) => this.addDraft(text),
         onStates: (states) => apply(search.setStates(query, states)),
       };
+    }
+
+    // chip(id, label, icon, key, value, title, negated) makes one quick filter.
+    quickFilters(chip) {
+      return [
+        chip('unread', 'Updated', 'dot-fill', 'is', 'unread', 'Updated since you last viewed them (is:unread)'),
+        this.viewer ? chip('requested', 'Review requested', 'eye', 'review-requested', '@me', 'Waiting on your review (review-requested:@me)') : null,
+        this.viewer ? chip('mine', 'Mine', 'person', 'author', '@me', 'Opened by you (author:@me)') : null,
+        chip('stacked', 'In a stack', 'stack', 'is', 'stacked', 'Part of a stack (is:stacked)'),
+        chip('drafts', 'Hide drafts', 'git-pull-request-draft', 'is', 'draft', 'Leave out drafts (-is:draft)', true),
+      ];
+    }
+
+    sortChoices() {
+      return Object.keys(search.SORTS);
     }
 
     allExpanded(entries) {
@@ -834,5 +904,5 @@
     }
   }
 
-  root.GitHubStacks = Object.assign(root.GitHubStacks || {}, { ListView, findNativeList });
+  root.GitHubStacks = Object.assign(root.GitHubStacks || {}, { ListView, findNativeList, listViewNothing: NOTHING });
 })(globalThis);

@@ -5,12 +5,19 @@
   const GAP = 4;
   const MAXIMUM_VALUE_MATCHES = 6;
   const MAXIMUM_MATCHES_PER_FIELD = 2;
-  const STATE_TABS = [
-    { id: 'open', label: 'Open', states: ['open'], title: 'Open pull requests' },
-    { id: 'merged', label: 'Merged', states: ['merged'], title: 'Merged pull requests' },
-    { id: 'closed', label: 'Closed', states: ['closed'], title: 'Closed without merging' },
-    { id: 'all', label: 'All', states: ['open', 'merged', 'closed'], title: 'Every pull request' },
-  ];
+  const STATE_TABS = {
+    pull_request: [
+      { id: 'open', label: 'Open', states: ['open'], title: 'Open pull requests' },
+      { id: 'merged', label: 'Merged', states: ['merged'], title: 'Merged pull requests' },
+      { id: 'closed', label: 'Closed', states: ['closed'], title: 'Closed without merging' },
+      { id: 'all', label: 'All', states: ['open', 'merged', 'closed'], title: 'Every pull request' },
+    ],
+    issue: [
+      { id: 'open', label: 'Open', states: ['open'], title: 'Open issues' },
+      { id: 'closed', label: 'Closed', states: ['merged', 'closed'], title: 'Closed issues' },
+      { id: 'all', label: 'All', states: ['open', 'merged', 'closed'], title: 'Every issue' },
+    ],
+  };
 
   // What a filter token can be. type: 'text' edits words, 'enum' picks from fixed values, 'entity' picks from the
   // loaded pull requests' people, labels or branches and also takes any typed value.
@@ -28,19 +35,35 @@
     { key: 'no', label: 'Missing', icon: 'dash', type: 'enum', description: 'No label, assignee or review request' },
     { key: 'head', label: 'From branch', icon: 'git-branch', type: 'entity', description: 'Head branch' },
     { key: 'base', label: 'Into branch', icon: 'git-branch', type: 'entity', description: 'Base branch' },
+    { key: 'milestone', label: 'Milestone', icon: 'milestone', type: 'entity', description: 'In the milestone' },
     { key: 'involves', label: 'Involves', icon: 'person', type: 'entity', description: 'Author, assignee, mentioned or commenter, searched on GitHub' },
-    { key: 'milestone', label: 'Milestone', icon: 'filter', type: 'text', description: 'Searched on GitHub' },
   ];
-  const FIELD_BY_KEY = new Map(FIELDS.map((field) => [field.key, field]));
+  const ISSUE_FIELDS = [
+    { key: null, label: 'Text', icon: 'search', type: 'text', description: 'Words in titles, descriptions, numbers, authors or labels' },
+    { key: 'author', label: 'Author', icon: 'person', type: 'entity', description: 'Opened by' },
+    { key: 'label', label: 'Label', icon: 'tag', type: 'entity', description: 'Has the label' },
+    { key: 'assignee', label: 'Assignee', icon: 'person', type: 'entity', description: 'Assigned to' },
+    { key: 'type', label: 'Type', icon: 'issue-opened', type: 'entity', description: 'Bug, feature, task…' },
+    { key: 'milestone', label: 'Milestone', icon: 'milestone', type: 'entity', description: 'In the milestone' },
+    { key: 'linked', label: 'Linked', icon: 'git-pull-request', type: 'enum', description: 'Has a linked pull request' },
+    { key: 'is', label: 'Is', icon: 'filter', type: 'enum', description: 'Updated since you viewed it' },
+    { key: 'no', label: 'Missing', icon: 'dash', type: 'enum', description: 'No label, assignee or milestone' },
+    { key: 'reason', label: 'Closed as', icon: 'issue-closed', type: 'enum', description: 'Completed, not planned or duplicate, searched on GitHub' },
+    { key: 'involves', label: 'Involves', icon: 'person', type: 'entity', description: 'Author, assignee, mentioned or commenter, searched on GitHub' },
+    { key: 'mentions', label: 'Mentions', icon: 'person', type: 'entity', description: 'Mentions someone, searched on GitHub' },
+  ];
+  const KIND_FIELDS = { pull_request: FIELDS, issue: ISSUE_FIELDS };
+  const PLACEHOLDERS = { pull_request: 'Search, or filter by author, label, review, checks…', issue: 'Search titles and descriptions, or filter by author, label, assignee, type…' };
 
-  function fieldFor(key) {
-    return FIELD_BY_KEY.get(key) || { key, label: key, icon: 'filter', type: 'text', description: 'Searched on GitHub' };
+  function fieldFor(key, fieldByKey) {
+    return fieldByKey.get(key) || { key, label: key, icon: 'filter', type: 'text', description: 'Searched on GitHub' };
   }
 
   // The words on a token: "Author is any of", "Text contains", "Is not", "Missing".
   function describe(field, negated, count) {
     if (field.key === 'is') return { label: negated ? 'Is not' : 'Is', operator: '' };
     if (field.key === 'no') return { label: negated ? 'Has' : 'Missing', operator: '' };
+    if (field.key === 'linked') return { label: negated ? 'No' : 'Has', operator: '' };
     if (field.key === null) return { label: 'Text', operator: negated ? 'doesn’t contain' : 'contains' };
     if (count > 1) return { label: field.label, operator: negated ? 'is none of' : 'is any of' };
     return { label: field.label, operator: negated ? 'is not' : 'is' };
@@ -49,12 +72,13 @@
   function operatorChoices(field) {
     if (field.key === null) return ['contains', 'doesn’t contain'];
     if (field.key === 'no') return ['Missing', 'Has'];
+    if (field.key === 'linked') return ['Has', 'Doesn’t have'];
     return ['is', 'is not'];
   }
 
   // The tokens a query shows: one per qualifier, all words together (negated words in a second one). State and
   // sort are shown by the tabs and the sort menu instead.
-  function tokensOf(query) {
+  function tokensOf(query, fieldByKey) {
     const tokens = [];
     const words = new Map();
     for (const token of search.tokenize(query)) {
@@ -67,12 +91,12 @@
           existing.values.push(token.value);
           continue;
         }
-        const entry = { field: FIELD_BY_KEY.get(null), negated: token.negated, parts: [token], values: [token.value] };
+        const entry = { field: fieldByKey.get(null), negated: token.negated, parts: [token], values: [token.value] };
         words.set(token.negated, entry);
         tokens.push(entry);
         continue;
       }
-      tokens.push({ field: fieldFor(token.key), negated: token.negated, parts: [token], values: token.values.map((value) => search.normalizeValue(token.key, value)) });
+      tokens.push({ field: fieldFor(token.key, fieldByKey), negated: token.negated, parts: [token], values: token.values.map((value) => search.normalizeValue(token.key, value)) });
     }
     return tokens;
   }
@@ -407,7 +431,12 @@
 
   // The search: a bar of filter tokens with a typeahead, and the state tabs, quick filters and sort under it.
   class SearchBar {
-    constructor() {
+    // kind: 'pull_request' or 'issue', for the fields, state tabs and placeholder.
+    constructor({ kind = 'pull_request' } = {}) {
+      this.kind = kind;
+      this.fields = KIND_FIELDS[kind];
+      this.fieldByKey = new Map(this.fields.map((field) => [field.key, field]));
+      this.tabs = STATE_TABS[kind];
       this.model = null;
       this.armed = false;
       this.currentTokens = [];
@@ -533,7 +562,7 @@
       const text = draft.trim();
       if (!text) {
         if (!explicit) return [];
-        return FIELDS.filter((field) => field.key !== null).map((field) => ({ kind: 'field', field, label: field.label, detail: field.description, icon: field.icon }));
+        return this.fields.filter((field) => field.key !== null).map((field) => ({ kind: 'field', field, label: field.label, detail: field.description, icon: field.icon }));
       }
       const tokens = search.tokenize(text);
       if (tokens.some((token) => token.key !== null)) {
@@ -556,16 +585,20 @@
         {
           kind: 'commit',
           label: `Search for “${text}”`,
-          detail: model.truncated ? `All ${model.truncated.toLocaleString()} on GitHub, in titles, bodies and comments` : 'In titles, numbers, branches, authors and labels',
+          detail: model.truncated
+            ? `All ${model.truncated.toLocaleString()} on GitHub, in titles, bodies and comments`
+            : this.kind === 'issue'
+              ? 'In titles, descriptions, numbers, authors and labels'
+              : 'In titles, numbers, branches, authors and labels',
           icon: 'search',
         },
       ];
-      for (const field of FIELDS) {
+      for (const field of this.fields) {
         if (field.key !== null && (field.label.toLowerCase().startsWith(word) || field.key.startsWith(word))) items.push({ kind: 'field', field, label: field.label, detail: field.description, icon: field.icon });
       }
       const matches = [];
-      for (const field of FIELDS) {
-        if (field.key === null || field.key === 'involves' || field.type === 'text') continue;
+      for (const field of this.fields) {
+        if (field.key === null || ['involves', 'mentions', 'reason'].includes(field.key) || field.type === 'text') continue;
         const found = model
           .options(field.key)
           .filter((option) => option.value !== '@me' && `${option.label} ${option.value}`.toLowerCase().includes(word))
@@ -737,7 +770,7 @@
       this.renderTokens(model);
       this.renderBar(model);
       this.clearButton.hidden = !model.clearable;
-      this.input.placeholder = this.currentTokens.length > 0 ? 'Add a filter or search' : 'Search, or filter by author, label, review, checks…';
+      this.input.placeholder = this.currentTokens.length > 0 ? 'Add a filter or search' : PLACEHOLDERS[this.kind];
       this.status.textContent = model.summary || '';
       if (focusKey) {
         const next = this.node.querySelector(`[data-focus-key="${focusKey}"]`);
@@ -747,7 +780,7 @@
     }
 
     renderTokens(model) {
-      const tokens = tokensOf(model.query);
+      const tokens = tokensOf(model.query, this.fieldByKey);
       this.currentTokens = tokens;
       this.armed = false;
       this.tokens.replaceChildren(
@@ -795,7 +828,7 @@
 
     renderBar(model) {
       this.bar.replaceChildren(
-        element('div', { className: 'ghs-state-tabs', attributes: { role: 'group', 'aria-label': 'State' } }, STATE_TABS.map((tab) => this.stateTab(tab, model))),
+        element('div', { className: 'ghs-state-tabs', attributes: { role: 'group', 'aria-label': 'State' } }, this.tabs.map((tab) => this.stateTab(tab, model))),
         model.chips.length > 0 ? element('div', { className: 'ghs-quick-filters', attributes: { role: 'group', 'aria-label': 'Quick filters' } }, model.chips.map((chip) => this.chip(chip))) : null,
         this.sortButton(model.sort),
       );

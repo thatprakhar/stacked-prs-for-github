@@ -1878,3 +1878,224 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* Issue list: one card per issue */
+
+.ghs-issue-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--ghs-bg-inset);
+}
+
+.ghs-issue-cards .ghs-empty {
+  border-radius: var(--borderRadius-large, 12px);
+  background: var(--ghs-bg);
+}
+
+.ghs-issue-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border: 1px solid var(--ghs-border);
+  border-radius: var(--borderRadius-large, 12px);
+  background: var(--ghs-bg);
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.ghs-issue-card:hover {
+  border-color: var(--borderColor-accent-muted, #54aeff66);
+  box-shadow: var(--shadow-resting-small, 0 1px 1px 0 #1f23280a, 0 1px 3px 0 #1f232826);
+}
+
+.ghs-issue-card.is-unread {
+  box-shadow: inset 3px 0 0 var(--ghs-fg-accent);
+}
+
+.ghs-issue-card.is-unread:hover {
+  box-shadow: inset 3px 0 0 var(--ghs-fg-accent), var(--shadow-resting-small, 0 1px 1px 0 #1f23280a, 0 1px 3px 0 #1f232826);
+}
+
+.ghs-issue-card.is-closed {
+  background: var(--ghs-bg-muted);
+}
+
+.ghs-issue-card.is-closed .ghs-row-title {
+  color: var(--ghs-fg-muted);
+}
+
+.ghs-issue-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.ghs-issue-card-icon {
+  display: inline-flex;
+  padding-top: 3px;
+}
+
+.ghs-issue-card-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.ghs-issue-card-title .ghs-row-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.ghs-issue-unread {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--ghs-fg-accent);
+  vertical-align: 2px;
+}
+
+.ghs-row-title.is-derived {
+  font-style: italic;
+}
+
+.ghs-issue-preview {
+  display: -webkit-box;
+  margin: 0 0 0 24px;
+  overflow: hidden;
+  color: var(--ghs-fg-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.ghs-issue-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 16px;
+  margin-left: 24px;
+}
+
+.ghs-issue-card-foot .ghs-meta {
+  margin: 0;
+}
+
+.ghs-issue-milestone,
+.ghs-issue-parent {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ghs-issue-milestone .ghs-octicon,
+.ghs-issue-parent .ghs-octicon {
+  width: 12px;
+  height: 12px;
+}
+
+.ghs-issue-parent {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ghs-issue-parent:hover {
+  color: var(--ghs-fg-accent);
+  text-decoration: underline;
+}
+
+.ghs-issue-signals {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.ghs-issue-linked,
+.ghs-issue-subs,
+.ghs-issue-blocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ghs-fg-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ghs-issue-linked {
+  text-decoration: none;
+}
+
+.ghs-issue-linked:hover {
+  color: var(--ghs-fg-accent);
+}
+
+.ghs-issue-subs.is-done {
+  color: var(--ghs-fg-done);
+}
+
+.ghs-issue-progress {
+  position: relative;
+  width: 32px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--ghs-neutral);
+}
+
+.ghs-issue-progress > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 3px;
+  background: var(--ghs-fg-done);
+}
+
+.ghs-issue-blocked {
+  padding: 0 6px;
+  border-radius: 2em;
+  background: var(--ghs-bg-danger);
+  color: var(--ghs-fg-danger);
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.ghs-issue-assignees {
+  display: inline-flex;
+  align-items: center;
+}
+
+.ghs-issue-assignees .ghs-avatar + .ghs-avatar {
+  margin-left: -6px;
+  box-shadow: 0 0 0 2px var(--ghs-bg);
+}
+
+.ghs-issue-more {
+  margin-left: 4px;
+  color: var(--ghs-fg-muted);
+  font-size: 12px;
+}
+
+.ghs-issue-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 7px;
+  border: 1px solid var(--ghs-border-muted);
+  border-radius: 2em;
+  color: var(--ghs-fg-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+}

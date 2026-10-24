@@ -30,8 +30,8 @@ const filter = (pullRequests, query, extra) => {
 };
 
 test('splits a query into the state to load, GitHub-only qualifiers and local filters', () => {
-  const plan = search.planQuery('is:open author:mira milestone:"Q4 launch" checkout sort:updated-desc');
-  assert.equal(plan.scopeQuery, 'is:open milestone:"Q4 launch"');
+  const plan = search.planQuery('is:open author:mira project:"Q4 launch" checkout sort:updated-desc');
+  assert.equal(plan.scopeQuery, 'is:open project:"Q4 launch"');
   assert.equal(plan.serverSort, 'updated-desc');
   assert.deepEqual(plan.filters.map((token) => token.raw), ['is:open', 'author:mira', 'checkout']);
   assert.equal(plan.sort, 'updated-desc');
@@ -100,6 +100,24 @@ test('checks, drafts, updates, stacks and SLA filter locally', () => {
   assert.deepEqual(filter(pullRequests, 'sla:at_risk', { statusOf }), [3]);
 });
 
+test('issues filter by milestone, type, linked pull requests and words in the description', () => {
+  const issue = (number, extra) => ({ ...pr(number), headRefName: undefined, baseRefName: undefined, ...extra });
+  const issues = [
+    issue(1, { milestone: { title: 'Q4 launch' }, issueType: { name: 'Bug' }, bodyText: 'The worker cannot reach the database' }),
+    issue(2, { issueType: { name: 'Feature' }, closedByPullRequestsReferences: { nodes: [{ number: 9 }] } }),
+    issue(3),
+  ];
+  assert.deepEqual(filter(issues, 'milestone:"q4 launch"'), [1]);
+  assert.deepEqual(filter(issues, 'no:milestone'), [2, 3]);
+  assert.deepEqual(filter(issues, 'type:bug'), [1]);
+  assert.deepEqual(filter(issues, '-type:bug'), [2, 3]);
+  assert.deepEqual(filter(issues, 'linked:pr'), [2]);
+  assert.deepEqual(filter(issues, 'database'), [1]);
+  assert.equal(search.planQuery('is:issue is:open type:Bug').scopeQuery, 'is:open');
+  assert.equal(search.planQuery('is:closed reason:"not planned"').scopeQuery, 'is:closed reason:"not planned"');
+  assert.deepEqual(search.planQuery('type:issue milestone:v2 linked:pr').deepTerms, ['milestone:v2', 'linked:pr']);
+});
+
 test('the qualifier being typed matches as a prefix', () => {
   const pullRequests = [pr(1, { author: 'sam-okafor' }), pr(2, { author: 'samantha' }), pr(3, { author: 'lee' })];
   assert.deepEqual(filter(pullRequests, 'author:sam'), []);
@@ -109,7 +127,7 @@ test('the qualifier being typed matches as a prefix', () => {
 
 test('qualifiers left to GitHub do not filter locally, and neither do tokens GitHub already applied', () => {
   const pullRequests = [pr(1), pr(2, { title: 'unrelated' })];
-  assert.deepEqual(filter(pullRequests, 'involves:@me milestone:v2'), [1, 2]);
+  assert.deepEqual(filter(pullRequests, 'involves:@me project:v2'), [1, 2]);
   const plan = search.planQuery('cart');
   assert.deepEqual(pullRequests.filter((pullRequest) => search.matchesAll(pullRequest, plan.filters, context({ handled: new Set(['cart']) }))).length, 2);
 });
