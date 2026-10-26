@@ -86,6 +86,13 @@ test('review state ignores bot reviews, unlike GitHub review:none', () => {
   assert.deepEqual(filter(pullRequests, 'review:bot_approved'), [2]);
   assert.deepEqual(filter(pullRequests, 'review:approved'), [3]);
   assert.deepEqual(filter(pullRequests, 'review:changes-requested'), [4]);
+  const asked = {
+    ...pr(5, { reviews: [['devon', 'CHANGES_REQUESTED']], requested: ['devon'] }),
+    reviewRequestEvents: { nodes: [{ createdAt: '2026-10-20T10:00:00Z', requestedReviewer: { __typename: 'User', login: 'devon' } }] },
+  };
+  asked.reviews.nodes[0].submittedAt = '2026-10-19T10:00:00Z';
+  assert.deepEqual(filter([...pullRequests, asked], 'review:re-requested'), [5]);
+  assert.deepEqual(filter([...pullRequests, asked], 'review:changes_requested'), [4]);
 });
 
 test('checks, drafts, updates, stacks and SLA filter locally', () => {

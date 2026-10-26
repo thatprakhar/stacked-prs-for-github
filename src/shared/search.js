@@ -36,6 +36,7 @@
       ['none', 'No review by a person yet'],
       ['approved', 'Approved by a person'],
       ['changes_requested', 'Changes requested'],
+      ['re-requested', 'Asked to review again after changes or comments'],
       ['commented', 'Reviewed with comments only'],
       ['bot-approved', 'Approved by a bot only'],
       ['required', 'Review required by branch protection'],
@@ -155,7 +156,7 @@
   function normalize(key, value) {
     const lowered = value.toLowerCase();
     if (key === 'sla' || lowered === 'bot_approved') return lowered.replace(/_/g, '-');
-    if (key === 'review') return lowered.replace(/-/g, '_').replace('bot_approved', 'bot-approved');
+    if (key === 'review') return lowered.replace(/-/g, '_').replace('bot_approved', 'bot-approved').replace('re_requested', 're-requested');
     return lowered;
   }
 
@@ -272,6 +273,7 @@
 
   function reviewCategory(pullRequest) {
     const human = reviews.humanReviewState(pullRequest);
+    if (human && reviews.reReviewRequest(pullRequest)) return 're-requested';
     if (human === 'reviewed') return 'commented';
     if (human) return human;
     return reviews.botApprovals(pullRequest).length > 0 ? 'bot-approved' : 'none';

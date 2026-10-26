@@ -53,11 +53,42 @@
     );
   }
 
+  // Who is looking, so a pill can speak to the author differently from reviewers.
+  let viewerLogin = null;
+
+  function setViewer(login) {
+    if (login) viewerLogin = login;
+  }
+
+  // Asked to review again. The author sees that they are waiting; everyone else sees it is ready for them,
+  // colored by how long it has waited, like any pull request waiting for review.
+  function reReviewPill(status) {
+    const again = status.rereview;
+    const waited = formatHours(status.hours);
+    const reviewers = again.reviewers.join(', ');
+    const mine = Boolean(viewerLogin && again.author && viewerLogin.toLowerCase() === again.author.toLowerCase());
+    if (mine) {
+      const title = `You asked ${reviewers} to review again; ${waited} of work time since`;
+      return element('span', { className: 'ghs-pill ghs-pill--rereview', attributes: { title, 'aria-label': title } }, [
+        octicon('sync'),
+        element('span', { className: 'ghs-pill-hours', text: waited }),
+        ' · Re-review requested',
+      ]);
+    }
+    const title = `${again.requestedBy || again.author} asked ${reviewers} to review again after changes were requested; waiting ${waited} of work time`;
+    return element('span', { className: `ghs-pill ghs-pill--${LEVEL_TONE[status.level]} ghs-pill--rereview-ready`, attributes: { title, 'aria-label': title } }, [
+      octicon('sync'),
+      element('span', { className: 'ghs-pill-hours', text: waited }),
+      ' · Ready for re-review',
+    ]);
+  }
+
   function formatHours(hours) {
     return hours >= 100 ? `${Math.round(hours)}h` : `${hours.toFixed(1)}h`;
   }
 
   function statusPill(status) {
+    if (status.kind === 'awaiting' && status.rereview) return reReviewPill(status);
     if (status.kind === 'awaiting') {
       return element(
         'span',
@@ -204,6 +235,6 @@
   }
 
   root.GitHubStacks = Object.assign(root.GitHubStacks || {}, {
-    render: { element, statusPill, stateIcon, pullRequestState, avatar, labelChip, pullRequestRow, formatHours, separator, isUnread, unreadMarker, pullRequestUnreadMarker, LEVEL_TEXT, LEVEL_TONE },
+    render: { element, setViewer, statusPill, stateIcon, pullRequestState, avatar, labelChip, pullRequestRow, formatHours, separator, isUnread, unreadMarker, pullRequestUnreadMarker, LEVEL_TEXT, LEVEL_TONE },
   });
 })(globalThis);

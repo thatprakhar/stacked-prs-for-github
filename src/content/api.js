@@ -4,13 +4,16 @@
     mergeQueueEntry { position state estimatedTimeToMerge mergeQueue { url } }
     author { login avatarUrl(size: 48) url __typename }
     assignees(first: 10) { nodes { login avatarUrl(size: 48) } }
-    reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } ... on Bot { login } ... on Team { slug combinedSlug } } } }
+    reviewRequests(first: 10) { nodes { requestedReviewer { __typename ... on User { login } ... on Bot { login } ... on Team { slug combinedSlug } } } }
+    reviewRequestEvents: timelineItems(itemTypes: [REVIEW_REQUESTED_EVENT], last: 5) {
+      nodes { ... on ReviewRequestedEvent { createdAt actor { login } requestedReviewer { __typename ... on User { login } ... on Bot { login } ... on Team { slug } } } }
+    }
     comments { totalCount }
     labels(first: 6) { nodes { name color } }
     milestone { title }
     commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
     timelineItems(itemTypes: [READY_FOR_REVIEW_EVENT], last: 1) { nodes { ... on ReadyForReviewEvent { createdAt } } }
-    reviews(first: 50) { nodes { state author { login __typename } } }
+    reviews(first: 50) { nodes { state submittedAt author { login __typename } } }
   `;
 
   const ISSUE_FIELDS = `
@@ -214,9 +217,11 @@
   async function pullRequestsByNumber(owner, repository, numbers) {
     if (numbers.length === 0) return new Map();
     const aliases = numbers.map((number) => `pr${number}: pullRequest(number: ${Number(number)}) { ${PULL_REQUEST_FIELDS} }`).join('\n');
-    const query = `query ($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${aliases} } }`;
+    const query = `query ($owner: String!, $name: String!) { viewer { login } repository(owner: $owner, name: $name) { ${aliases} } }`;
     const data = await send({ type: 'graphql', query, variables: { owner, name: repository } });
-    return new Map(Object.values(data.repository).filter(Boolean).map((pullRequest) => [pullRequest.number, pullRequest]));
+    const details = new Map(Object.values(data.repository).filter(Boolean).map((pullRequest) => [pullRequest.number, pullRequest]));
+    details.viewer = data.viewer ? data.viewer.login : null;
+    return details;
   }
 
   const LAST_READ_MILLISECONDS = 60 * 1000;

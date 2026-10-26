@@ -7,7 +7,7 @@
   const LEVELS = ['breached', 'at_risk', 'on_track'];
   const PAGINATION_SELECTOR = 'nav[aria-label="Pagination"], nav[aria-label="pagination"], .paginate-container, [data-testid="pagination"]';
   const NOTHING = { key: 'none', handled: new Set() };
-  const REVIEW_LABELS = { none: 'Not reviewed', approved: 'Approved', changes_requested: 'Changes requested', commented: 'Commented', 'bot-approved': 'Bot approved', required: 'Review required' };
+  const REVIEW_LABELS = { none: 'Not reviewed', approved: 'Approved', changes_requested: 'Changes requested', 're-requested': 'Re-review requested', commented: 'Commented', 'bot-approved': 'Bot approved', required: 'Review required' };
 
   // segment: 'pull' for the pull request list, 'issues' for the issue list.
   function findNativeList(route, ownRoot, segment = 'pull') {
@@ -381,6 +381,7 @@
     }
 
     render() {
+      root.GitHubStacks.render.setViewer(this.viewer);
       if (!this.enabled) {
         this.searchBar.close();
         this.searchBar.node.hidden = true;

@@ -41,6 +41,35 @@
     return null;
   }
 
+  function reviewerName(reviewer) {
+    return reviewer ? reviewer.login || reviewer.slug || reviewer.name || null : null;
+  }
+
+  // A re-review: after a person requested changes or commented, the author asked for review again (from them or
+  // from someone else), and that request is still open. Returns when it was asked and who it waits on, or null.
+  function reReviewRequest(pullRequest) {
+    const state = humanReviewState(pullRequest);
+    if (state !== 'changes_requested' && state !== 'reviewed') return null;
+    const pending = ((pullRequest.reviewRequests && pullRequest.reviewRequests.nodes) || [])
+      .map((request) => request.requestedReviewer)
+      .filter((reviewer) => reviewer && !(reviewer.login && isBot(reviewer)))
+      .map(reviewerName)
+      .filter(Boolean);
+    if (pending.length === 0) return null;
+    const authorLogin = pullRequest.author ? pullRequest.author.login : null;
+    const lastReview = Math.max(
+      ...((pullRequest.reviews && pullRequest.reviews.nodes) || [])
+        .filter((review) => review.state !== 'PENDING' && review.submittedAt && review.author && !isBot(review.author) && review.author.login !== authorLogin)
+        .map((review) => Date.parse(review.submittedAt)),
+    );
+    const requests = ((pullRequest.reviewRequestEvents && pullRequest.reviewRequestEvents.nodes) || []).filter(
+      (event) => event && event.createdAt && event.requestedReviewer && !(event.requestedReviewer.login && isBot(event.requestedReviewer)),
+    );
+    const latest = requests.reduce((last, event) => (!last || Date.parse(event.createdAt) > Date.parse(last.createdAt) ? event : last), null);
+    if (!latest || !(Date.parse(latest.createdAt) > lastReview)) return null;
+    return { requestedAt: latest.createdAt, requestedBy: latest.actor ? latest.actor.login : authorLogin, author: authorLogin, reviewers: pending };
+  }
+
   function readyForReviewAt(pullRequest) {
     const events = (pullRequest.timelineItems && pullRequest.timelineItems.nodes) || [];
     const latest = events.length > 0 ? events[events.length - 1].createdAt : null;
@@ -69,14 +98,20 @@
     }
     if (pullRequest.isDraft) return { kind: 'draft' };
     const reviewed = humanReviewState(pullRequest);
-    if (reviewed) return { kind: reviewed };
+    if (reviewed) {
+      // Asked to review again: back on the clock, from when it was asked.
+      const again = reReviewRequest(pullRequest);
+      if (!again) return { kind: reviewed };
+      const hours = workHours(Date.parse(again.requestedAt), now, settings);
+      return { kind: 'awaiting', hours, level: slaLevel(hours, settings), rereview: again };
+    }
     const approvingBots = botApprovals(pullRequest);
     if (approvingBots.length > 0) return { kind: 'bot_approved', botApprovals: approvingBots };
     const hours = workHours(readyForReviewAt(pullRequest), now, settings);
     return { kind: 'awaiting', hours, level: slaLevel(hours, settings) };
   }
 
-  const api = { DEFAULT_SETTINGS, reviewStatus, humanReviewState, botApprovals, readyForReviewAt, slaLevel };
+  const api = { DEFAULT_SETTINGS, reviewStatus, humanReviewState, reReviewRequest, botApprovals, readyForReviewAt, slaLevel };
   root.GitHubStacks = Object.assign(root.GitHubStacks || {}, api);
   if (typeof module !== 'undefined') module.exports = api;
 })(globalThis);

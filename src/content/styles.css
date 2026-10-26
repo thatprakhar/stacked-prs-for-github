@@ -300,6 +300,29 @@
   height: 12px;
 }
 
+.ghs-pill--rereview,
+.ghs-pill--rereview-ready {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ghs-pill--rereview .ghs-octicon,
+.ghs-pill--rereview-ready .ghs-octicon {
+  width: 13px;
+  height: 13px;
+}
+
+.ghs-pill--rereview {
+  border-color: var(--borderColor-accent-muted, #54aeff66);
+  background: var(--ghs-bg-accent);
+  color: var(--ghs-fg-accent);
+}
+
+.ghs-pill--rereview-ready {
+  border-color: currentColor;
+}
+
 .ghs-pill--button {
   font-family: inherit;
   cursor: pointer;

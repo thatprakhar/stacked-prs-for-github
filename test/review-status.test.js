@@ -22,6 +22,35 @@ test('a pull request in the merge queue is queued, with its place and time to me
   assert.equal(reviewStatus({ ...base, state: 'MERGED', isInMergeQueue: false }, now, DEFAULT_SETTINGS).kind, 'merged');
 });
 
+const timed = (login, state, submittedAt, typename = 'User') => ({ state, submittedAt, author: { login, __typename: typename } });
+const requested = (login, typename = 'User') => ({ requestedReviewer: { __typename: typename, login } });
+const askedAt = (createdAt, login = 'allen', typename = 'User') => ({ createdAt, actor: { login: 'prakhar' }, requestedReviewer: { __typename: typename, login } });
+const changesThenAsked = {
+  ...base,
+  reviews: { nodes: [timed('allen', 'CHANGES_REQUESTED', '2026-10-15T10:00:00-04:00'), timed('prakhar', 'COMMENTED', '2026-10-15T11:00:00-04:00'), timed('coderabbit', 'CHANGES_REQUESTED', '2026-10-15T12:30:00-04:00', 'Bot')] },
+  reviewRequests: { nodes: [requested('allen')] },
+  reviewRequestEvents: { nodes: [askedAt('2026-10-15T09:00:00-04:00'), askedAt('2026-10-15T13:00:00-04:00')] },
+};
+
+test('asked to review again after changes were requested, it waits for review again, timed from the request', () => {
+  const status = reviewStatus(changesThenAsked, now, DEFAULT_SETTINGS);
+  assert.equal(status.kind, 'awaiting');
+  assert.equal(status.hours, 3);
+  assert.equal(status.level, 'at_risk');
+  assert.deepEqual(status.rereview, { requestedAt: '2026-10-15T13:00:00-04:00', requestedBy: 'prakhar', author: 'prakhar', reviewers: ['allen'] });
+});
+
+test('a request made before the review, a request to a bot, or an approval is not a re-review', () => {
+  const before = { ...changesThenAsked, reviewRequestEvents: { nodes: [askedAt('2026-10-15T09:00:00-04:00')] } };
+  assert.equal(reviewStatus(before, now, DEFAULT_SETTINGS).kind, 'changes_requested');
+  const bot = { ...changesThenAsked, reviewRequests: { nodes: [requested('coderabbit', 'Bot')] }, reviewRequestEvents: { nodes: [askedAt('2026-10-15T13:00:00-04:00', 'coderabbit', 'Bot')] } };
+  assert.equal(reviewStatus(bot, now, DEFAULT_SETTINGS).kind, 'changes_requested');
+  const approved = { ...changesThenAsked, reviews: { nodes: [timed('allen', 'APPROVED', '2026-10-15T10:00:00-04:00')] } };
+  assert.equal(reviewStatus(approved, now, DEFAULT_SETTINGS).kind, 'approved');
+  const answered = { ...changesThenAsked, reviewRequests: { nodes: [] } };
+  assert.equal(reviewStatus(answered, now, DEFAULT_SETTINGS).kind, 'changes_requested');
+});
+
 test('a pull request with no human review is awaiting, timed from when it was opened', () => {
   assert.deepEqual(reviewStatus(base, now, DEFAULT_SETTINGS), { kind: 'awaiting', hours: 7, level: 'breached' });
 });

@@ -43,6 +43,7 @@
         if (!stack || key !== this.key) return;
         const details = await api.pullRequestsByNumber(owner, repository, stack.pull_requests.map((member) => member.number));
         if (key !== this.key) return;
+        root.GitHubStacks.render.setViewer(details.viewer);
         this.view = { stack, details, settings };
         this.render();
         document.body.append(this.root);
