@@ -19,6 +19,23 @@
       .box { border: 1px solid var(--borderColor-default); border-radius: 6px; overflow: hidden; }
       .box-header { display: flex; gap: 16px; padding: 12px 16px; background: var(--bgColor-muted); }
       .muted { color: var(--fgColor-muted); }
+      .repo-title { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--borderColor-muted); font-size: 20px; }
+      .repo-avatar { width: 24px; height: 24px; border-radius: 6px; background: #d4c5f9; }
+      .visibility { padding: 0 7px; border: 1px solid var(--borderColor-default); border-radius: 2em; color: var(--fgColor-muted); font-size: 12px; }
+      .repo-home { display: grid; grid-template-columns: minmax(0, 1fr) 296px; gap: 24px; }
+      .repo-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+      .repo-spacer { flex: 1; }
+      .repo-button { height: 32px; padding: 0 12px; border: 1px solid var(--borderColor-default); border-radius: 6px; background: var(--bgColor-muted); color: inherit; font: inherit; }
+      .repo-code { border-color: #1f883d; background: #1f883d; color: #fff; font-weight: 600; }
+      .repo-goto { display: inline-flex; align-items: center; gap: 24px; height: 30px; padding: 0 8px 0 12px; border: 1px solid var(--borderColor-default); border-radius: 6px; color: var(--fgColor-muted); }
+      .repo-goto kbd { padding: 0 5px; border: 1px solid var(--borderColor-default); border-radius: 4px; font-size: 11px; }
+      .box-header[data-testid] { gap: 10px; }
+      .repo-file { display: grid; grid-template-columns: 20px 200px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 16px; border-top: 1px solid var(--borderColor-muted); }
+      .repo-file-icon { width: 16px; height: 14px; border-radius: 2px; background: #54aeff; }
+      .repo-file-icon.file { width: 12px; height: 15px; background: none; border: 1.5px solid var(--fgColor-muted); }
+      .repo-file-message { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .repo-about h2 { margin: 0 0 8px; font-size: 16px; }
+      .repo-about p { margin: 0 0 20px; }
       .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
       .native { margin: 0; padding: 0; list-style: none; }
       .native li { padding: 8px 16px; border-top: 1px solid var(--borderColor-muted); }
@@ -33,7 +50,7 @@
   </head>
   <body>
     <div class="top"><span class="repo"><span id="owner"></span> / <strong id="repository"></strong></span></div>
-    <div class="tabs"><span>Code</span><span>Issues</span><span class="selected">Pull requests</span><span>Actions</span><span>Insights</span></div>
+    <div class="tabs" id="tabs"><span>Code</span><span>Issues</span><span>Pull requests</span><span>Actions</span><span>Insights</span></div>
     <div class="page" id="page"></div>
     <pre id="log"></pre>
     <script>
@@ -59,6 +76,8 @@
       const [owner, repository] = (demo ? 'acme/storefront' : parameters.get('repo') || 'owner/repository').split('/');
       const number = parameters.get('pr');
       const issues = parameters.has('issues');
+      const home = parameters.has('home');
+      document.getElementById('tabs').children[home ? 0 : issues ? 1 : 2].classList.add('selected');
       const theme = parameters.get('theme') === 'dark' ? 'dark' : 'light';
       document.documentElement.setAttribute('data-color-mode', theme);
       document.documentElement.setAttribute(`data-${theme}-theme`, theme);
@@ -66,7 +85,38 @@
       document.getElementById('repository').textContent = repository;
 
       const page = document.getElementById('page');
-      if (number) {
+      if (home) {
+        // A repository's main page: branch picker, latest commit and files, with the About column beside them.
+        const files = [
+          ['dir', '.github', '[infra] Cache build layers between CI runs', '2 days ago'],
+          ['dir', 'checkout', '[checkout] Add the cart totals service', '3 hours ago'],
+          ['dir', 'search', '[search] Index product variants', 'yesterday'],
+          ['dir', 'storefront', '[ui] Dark mode for the account menu', '5 hours ago'],
+          ['dir', 'docs', '[docs] Explain the release checklist step by step', '1 hour ago'],
+          ['file', '.gitignore', 'Ignore local build output', 'last month'],
+          ['file', 'package.json', '[deps] Bump the image pipeline to v4', 'yesterday'],
+          ['file', 'README.md', '[docs] Explain the release checklist step by step', '1 hour ago'],
+        ];
+        page.innerHTML = `
+          <div class="repo-title"><span class="repo-avatar"></span><strong>storefront</strong><span class="visibility">Internal</span></div>
+          <div class="repo-home">
+            <div class="repo-main">
+              <div class="repo-toolbar">
+                <button id="ref-picker-repos-header-ref-selector" class="repo-button">⑂ <strong>main</strong> ▾</button>
+                <span class="muted">⑂ <strong>14</strong> Branches · <strong>3</strong> Tags</span>
+                <span class="repo-spacer"></span>
+                <span class="repo-goto">Go to file <kbd>t</kbd></span>
+                <button class="repo-button">Add file ▾</button>
+                <button class="repo-button repo-code">‹› Code ▾</button>
+              </div>
+              <div class="box">
+                <div class="box-header" data-testid="latest-commit-details"><strong>mira-chen</strong><span class="muted">[checkout] Add the cart totals service</span><span class="repo-spacer"></span><span class="muted">3f9c2a1 · 3 hours ago · 1,284 Commits</span></div>
+                <div data-testid="directory-content">${files.map(([kind, name, message, when]) => `<div class="repo-file"><span class="repo-file-icon ${kind}"></span><span class="repo-file-name">${name}</span><span class="muted repo-file-message">${message}</span><span class="muted">${when}</span></div>`).join('')}</div>
+              </div>
+            </div>
+            <aside class="repo-about"><h2>About</h2><p>The Acme storefront: catalog, search, cart and checkout.</p><p class="muted">☆ 41 stars · 6 watching · 9 forks</p><h2>Releases</h2><p class="muted">v2.14.0 · last week</p><h2>Contributors</h2><p class="muted">mira-chen, sam-okafor, devon-reyes, priya-nair, lee-park</p></aside>
+          </div>`;
+      } else if (number) {
         page.innerHTML = `
           <h1 class="pull-title"></h1>
           <p><span class="state">Open</span><span class="muted" id="subtitle"></span></p>
@@ -126,7 +176,7 @@
       if (parameters.get('type') !== null) {
         // Types once the search shows, which is after the demo data loads.
         const typeOnce = new MutationObserver(() => {
-          const input = document.querySelector('.ghs-search-input');
+          const input = document.querySelector(home ? '.ghs-code-search-input' : '.ghs-search-input');
           if (!input || !input.offsetParent) return;
           typeOnce.disconnect();
           input.focus();
@@ -136,7 +186,7 @@
         typeOnce.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
       }
       globalThis.GitHubStacks = {
-        testLocation: { host, pathname: number ? `/${owner}/${repository}/pull/${number}` : `/${owner}/${repository}/${issues ? 'issues' : 'pulls'}` },
+        testLocation: { host, pathname: home ? `/${owner}/${repository}` : number ? `/${owner}/${repository}/pull/${number}` : `/${owner}/${repository}/${issues ? 'issues' : 'pulls'}` },
       };
     </script>
     <script src="../src/shared/work-hours.js"></script>

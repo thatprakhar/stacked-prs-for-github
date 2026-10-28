@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Stacked PRs for GitHub",
   "short_name": "Stacked PRs",
-  "version": "1.7.0",
-  "description": "See stacked pull requests as stacks on GitHub, with each one’s author, review wait in work hours and an SLA pill.",
+  "version": "1.7.1",
+  "description": "See stacked PRs as stacks, track review SLAs, search with filter tokens, read issues as cards and search code with tbgs.",
   "minimum_chrome_version": "111",
   "icons": {
     "16": "icons/icon-16.png",

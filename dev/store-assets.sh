@@ -43,5 +43,7 @@ shot store/screenshots/3-stack-navigator.png 1280,800 "dev/preview.html?demo&pr=
 shot store/screenshots/4-settings.png 1280,800 "$OPTIONS_PREVIEW"
 shot store/screenshots/5-what-changed.png 1280,800 "$PREVIEW&expand=stack-208&hover=%5Bdata-number%3D%22202%22%5D%20.ghs-unread-bar" 30000
 shot store/screenshots/6-search.png 1280,800 "dev/preview.html?demo&q=is%3Aopen+author%3Amira-chen%2Csam-okafor+-label%3Adocs&type=review"
+shot store/screenshots/7-issues.png 1280,800 "dev/preview.html?demo&issues&q=is%3Aopen"
+shot store/screenshots/8-code-search.png 1280,800 "dev/preview.html?demo&home&type=applyDiscount"
 shot store/promo-tile.png 440,280 "store/promo-tile.html"
 ls -1 store/screenshots store/promo-tile.png
