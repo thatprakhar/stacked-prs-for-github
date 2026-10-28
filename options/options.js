@@ -1,4 +1,4 @@
-const { DEFAULT_SETTINGS } = globalThis.GitHubStacks;
+const { DEFAULT_SETTINGS, codeSearch } = globalThis.GitHubStacks;
 const DEFAULT_HOSTS = ['github.com'];
 const HOST_PATTERN = /^(github\.com|[a-z0-9-]+\.ghe\.com)$/;
 
@@ -138,6 +138,42 @@ document.getElementById('time-zones').append(
   ...Intl.supportedValuesOf('timeZone').map((zone) => Object.assign(document.createElement('option'), { value: zone })),
 );
 
+const codeSearchForm = document.getElementById('code-search');
+
+// What tbgs would open for "xyz" with the form as it is now.
+async function showCodeSearchExample() {
+  const recent = (await chrome.storage.local.get('recentRepositories')).recentRepositories || {};
+  const elements = codeSearchForm.elements;
+  const target = codeSearch.codeSearchTarget({ host: elements.host.value, repository: elements.repository.value.trim() }, recent);
+  elements.repository.placeholder = (recent.repositories || {})[elements.host.value] || 'owner/name';
+  document.getElementById('code-search-example').textContent = `tbgs xyz → ${codeSearch.codeSearchUrl(target.host, target.repository, 'xyz')}`;
+}
+
+async function renderCodeSearch() {
+  const { codeSearch: saved = {}, recentRepositories: recent = {} } = await chrome.storage.local.get(['codeSearch', 'recentRepositories']);
+  const target = codeSearch.codeSearchTarget(saved, recent);
+  const select = codeSearchForm.elements.host;
+  select.replaceChildren(...[...new Set([...(await hosts()), target.host])].map((host) => Object.assign(document.createElement('option'), { value: host, textContent: host })));
+  select.value = target.host;
+  codeSearchForm.elements.repository.value = saved.repository || '';
+  await showCodeSearchExample();
+}
+
+codeSearchForm.addEventListener('input', () => showCodeSearchExample());
+codeSearchForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const host = codeSearchForm.elements.host.value;
+  const repository = codeSearchForm.elements.repository.value.trim();
+  const status = document.getElementById('code-search-saved');
+  if (repository && !codeSearch.validRepository(repository)) {
+    status.textContent = 'Write the repository as owner/name';
+    return;
+  }
+  await chrome.storage.local.set({ codeSearch: { host, repository } });
+  status.textContent = 'Saved';
+  setTimeout(() => (status.textContent = ''), 2000);
+});
+
 async function start() {
   const requested = (new URLSearchParams(location.search).get('host') || '').toLowerCase();
   if (HOST_PATTERN.test(requested)) {
@@ -145,6 +181,7 @@ async function start() {
     history.replaceState(null, '', location.pathname);
   }
   await renderTokens(requested || null);
+  await renderCodeSearch();
 }
 
 start();

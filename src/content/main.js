@@ -1,9 +1,11 @@
 (function (root) {
-  const { ListView, IssueListView, StackNavigator, api } = root.GitHubStacks;
+  const { ListView, IssueListView, StackNavigator, CodeSearchBar, api } = root.GitHubStacks;
 
   const LIST_PATH = /^\/([^/]+)\/([^/]+)\/pulls(?:\/.*)?$/;
   const PULL_REQUEST_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)(?:\/([^/]+))?/;
   const ISSUES_PATH = /^\/([^/]+)\/([^/]+)\/issues\/?$/;
+  // A repository's main page; other two-part paths (an organization's settings, say) have no file list, so nothing mounts.
+  const REPOSITORY_PATH = /^\/([^/]+)\/([^/]+)\/?$/;
 
   function currentRoute() {
     const where = root.GitHubStacks.testLocation || location;
@@ -15,12 +17,23 @@
     if (pullRequest) {
       return { kind: 'pull_request', host: where.host, owner: pullRequest[1], repository: pullRequest[2], number: Number(pullRequest[3]), tab: pullRequest[4] || null };
     }
+    const repository = where.pathname.match(REPOSITORY_PATH);
+    if (repository) return { kind: 'repository', host: where.host, owner: repository[1], repository: repository[2] };
     return { kind: 'other' };
   }
 
   const listView = new ListView();
   const issueView = new IssueListView();
   const navigator = new StackNavigator();
+  const codeSearchBar = new CodeSearchBar();
+
+  let remembered = null;
+  function remember(route) {
+    const key = `${route.host}/${route.owner}/${route.repository}`;
+    if (key === remembered || !api.extensionAlive()) return;
+    remembered = key;
+    api.rememberRepository(route.host, `${route.owner}/${route.repository}`).catch(() => {});
+  }
 
   function sync() {
     const route = currentRoute();
@@ -30,6 +43,9 @@
     else issueView.unmount();
     if (route.kind === 'pull_request') navigator.sync(route);
     else navigator.unmount();
+    const onRepository = route.kind === 'repository' && codeSearchBar.sync(route);
+    if (route.kind !== 'repository') codeSearchBar.unmount();
+    if (onRepository || ['list', 'issues', 'pull_request'].includes(route.kind)) remember(route);
   }
 
   let scheduled = false;

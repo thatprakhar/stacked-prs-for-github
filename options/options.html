@@ -62,9 +62,29 @@
         </form>
         <datalist id="time-zones"></datalist>
       </section>
+
+      <section class="box">
+        <div class="box-header">
+          <h2>Code search shortcut</h2>
+          <p class="muted">
+            In Chrome's address bar, type <kbd>tbgs</kbd>, a space and what to look for, then press Enter to search code on GitHub.
+            Leave the repository empty to search the last repository you visited on that host.
+          </p>
+        </div>
+        <form id="code-search" class="box-body grid">
+          <label>Host <select name="host"></select></label>
+          <label>Repository <input name="repository" type="text" placeholder="owner/name" pattern="[A-Za-z0-9_.\-]+/[A-Za-z0-9_.\-]+" spellcheck="false" autocomplete="off" /></label>
+          <p class="muted example">Example: <code id="code-search-example"></code></p>
+          <div class="form-actions">
+            <button type="submit" class="button button-primary">Save</button>
+            <span id="code-search-saved" class="muted" role="status"></span>
+          </div>
+        </form>
+      </section>
     </main>
     <script src="../src/shared/work-hours.js"></script>
     <script src="../src/shared/review-status.js"></script>
+    <script src="../src/shared/code-search.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

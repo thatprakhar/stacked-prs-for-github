@@ -260,6 +260,14 @@
     return { since, viewer: data.viewer.login, nodes: data.repository.pullRequest.timelineItems.nodes };
   }
 
+  // The last repository visited on each host, for the address bar code search when none is chosen in the settings.
+  async function rememberRepository(host, repository) {
+    const recent = await readLocal('recentRepositories', {});
+    const repositories = recent.repositories || {};
+    if (recent.lastHost === host && repositories[host] === repository) return;
+    await writeLocal({ recentRepositories: { lastHost: host, repositories: { ...repositories, [host]: repository } } });
+  }
+
   async function settings() {
     const { settings: saved = {} } = await callExtension(() => chrome.storage.sync.get('settings'));
     return { ...root.GitHubStacks.DEFAULT_SETTINGS, ...saved };
@@ -270,6 +278,6 @@
   }
 
   root.GitHubStacks = Object.assign(root.GitHubStacks || {}, {
-    api: { searchItems, countItems, listStacks, stackForPullRequest, pullRequestsByNumber, activity, settings, openOptions, extensionAlive, readLocal, writeLocal, CONTEXT_INVALIDATED },
+    api: { searchItems, countItems, rememberRepository, listStacks, stackForPullRequest, pullRequestsByNumber, activity, settings, openOptions, extensionAlive, readLocal, writeLocal, CONTEXT_INVALIDATED },
   });
 })(globalThis);

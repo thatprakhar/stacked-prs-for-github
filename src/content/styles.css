@@ -1,6 +1,7 @@
 .ghs-root,
 .ghs-navigator,
-.ghs-floating {
+.ghs-floating,
+.ghs-code-search {
   --ghs-fg: var(--fgColor-default, #1f2328);
   --ghs-fg-muted: var(--fgColor-muted, #59636e);
   --ghs-fg-accent: var(--fgColor-accent, #0969da);
@@ -2121,4 +2122,111 @@
   font-weight: 500;
   line-height: 18px;
   white-space: nowrap;
+}
+
+/* Code search at the top of a repository's main page */
+
+.ghs-code-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 16px;
+}
+
+.ghs-code-search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 8px 0 14px;
+  border: 1px solid var(--control-borderColor-rest, var(--ghs-border));
+  border-radius: var(--borderRadius-large, 12px);
+  background: var(--ghs-bg);
+  box-shadow: var(--shadow-resting-small, 0 1px 1px 0 #1f23280a, 0 1px 3px 0 #1f232826);
+  cursor: text;
+}
+
+.ghs-code-search-field:focus-within {
+  border-color: var(--focus-outlineColor, var(--ghs-fg-accent));
+  outline: 1px solid var(--focus-outlineColor, var(--ghs-fg-accent));
+}
+
+.ghs-code-search-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--ghs-fg-muted);
+}
+
+.ghs-code-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ghs-fg);
+  font: inherit;
+  font-size: 16px;
+}
+
+.ghs-code-search-input::placeholder {
+  color: var(--ghs-fg-muted);
+}
+
+.ghs-code-search-input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+.ghs-code-search-hint {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  color: var(--ghs-fg-muted);
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.ghs-code-search-field:focus-within .ghs-code-search-hint {
+  opacity: 1;
+}
+
+.ghs-code-search kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--ghs-border);
+  border-radius: 4px;
+  background: var(--ghs-bg-muted);
+  color: var(--ghs-fg-muted);
+  font-family: var(--ghs-mono);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.ghs-code-search-shortcut {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 0 4px;
+  color: var(--ghs-fg-muted);
+  font-size: 12px;
+}
+
+.ghs-code-search-use {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ghs-fg-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ghs-code-search-use:hover {
+  text-decoration: underline;
 }

@@ -67,3 +67,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());
+
+// The address bar shortcut: `tbgs` and a space, then words, searches code on GitHub (see shared/code-search.js).
+importScripts('shared/code-search.js');
+const { codeSearch } = globalThis.GitHubStacks;
+
+async function codeSearchTarget() {
+  const { codeSearch: saved = {}, recentRepositories = {} } = await chrome.storage.local.get(['codeSearch', 'recentRepositories']);
+  return codeSearch.codeSearchTarget(saved, recentRepositories);
+}
+
+function escapeXml(text) {
+  return text.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[character]);
+}
+
+async function describeSearch(text, suggest) {
+  const { host, repository } = await codeSearchTarget();
+  const words = text.trim();
+  const where = repository ? `${repository} on ${host}` : `all code on ${host}`;
+  chrome.omnibox.setDefaultSuggestion({
+    description: words ? `Search ${escapeXml(where)} for <match>${escapeXml(words)}</match>` : `Search code in ${escapeXml(where)}: type what to look for`,
+  });
+  // With a repository, the same words across every repository on the host are one arrow key away.
+  if (suggest) {
+    suggest(repository && words ? [{ content: codeSearch.codeSearchUrl(host, null, words), description: `Search all code on ${escapeXml(host)} for <match>${escapeXml(words)}</match>` }] : []);
+  }
+}
+
+chrome.omnibox.onInputStarted.addListener(() => describeSearch(''));
+chrome.omnibox.onInputChanged.addListener((text, suggest) => describeSearch(text, suggest));
+chrome.omnibox.onInputEntered.addListener(async (text, disposition) => {
+  const { host, repository } = await codeSearchTarget();
+  // A picked suggestion arrives as its URL; anything typed is the words to search for.
+  const picked = /^https:\/\//.test(text) && codeSearch.validHost(new URL(text).host) ? text : null;
+  const url = picked || codeSearch.codeSearchUrl(host, repository, text);
+  if (disposition === 'currentTab') chrome.tabs.update({ url });
+  else chrome.tabs.create({ url, active: disposition === 'newForegroundTab' });
+});
