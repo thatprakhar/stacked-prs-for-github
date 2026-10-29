@@ -103,6 +103,8 @@ async function renderSettings() {
   for (const name of ['slaHours', 'atRiskHours', 'timeZone', 'workdayStart', 'workdayEnd']) settingsForm.elements[name].value = settings[name];
   for (const box of settingsForm.querySelectorAll('input[name="workdays"]')) box.checked = settings.workdays.includes(Number(box.value));
   settingsForm.elements.showNavigator.checked = settings.showNavigator;
+  settingsForm.elements.showIntentTrail.checked = settings.showIntentTrail;
+  settingsForm.elements.intentServer.value = settings.intentServer;
 }
 
 settingsForm.addEventListener('submit', async (event) => {
@@ -110,6 +112,22 @@ settingsForm.addEventListener('submit', async (event) => {
   const elements = settingsForm.elements;
   const saved = document.getElementById('saved');
   const timeZone = elements.timeZone.value.trim();
+  // Reaching an Intent Trail server needs its origin granted; ask now, while this click counts as a gesture.
+  const intentServer = elements.intentServer.value.trim().replace(/\/+$/, '');
+  if (intentServer) {
+    let origin;
+    try {
+      origin = new URL(intentServer).origin;
+    } catch {
+      saved.textContent = `${intentServer} is not a web address`;
+      return;
+    }
+    const granted = await chrome.permissions.request({ origins: [`${origin}/*`] }).catch(() => false);
+    if (!granted) {
+      saved.textContent = `The extension may only reach a local server (localhost or 127.0.0.1)`;
+      return;
+    }
+  }
   try {
     new Intl.DateTimeFormat('en-US', { timeZone });
   } catch {
@@ -124,6 +142,8 @@ settingsForm.addEventListener('submit', async (event) => {
     workdayEnd: Number(elements.workdayEnd.value),
     workdays: [...settingsForm.querySelectorAll('input[name="workdays"]:checked')].map((box) => Number(box.value)),
     showNavigator: elements.showNavigator.checked,
+    showIntentTrail: elements.showIntentTrail.checked,
+    intentServer,
   };
   if (settings.workdayEnd <= settings.workdayStart) {
     saved.textContent = 'The work day must end after it starts';

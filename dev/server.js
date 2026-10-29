@@ -26,6 +26,16 @@ async function answer(message) {
     return body.data;
   }
   if (message.type === 'rest') return gh([message.path.replace(/^\//, '')]);
+  if (message.type.startsWith('intent-')) {
+    const intentSource = require('../src/shared/intent-source.js');
+    const restOrNull = (restPath) => gh([restPath.replace(/^\//, '')]).catch((error) => {
+      if (error.notFound) return null;
+      throw error;
+    });
+    if (message.type === 'intent-pull-request') return intentSource.loadPullRequest({ gh: restOrNull, host: HOST, ...message });
+    if (message.type === 'intent-timeline') return intentSource.loadTimeline({ gh: restOrNull, ...message });
+    return null; // intent-check: nothing to save in the preview
+  }
   return null;
 }
 

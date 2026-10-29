@@ -55,6 +55,8 @@
             <label><input type="checkbox" name="workdays" value="0" /> Sun</label>
           </fieldset>
           <label class="inline"><input name="showNavigator" type="checkbox" /> Show the stack navigator on pull request pages</label>
+          <label class="inline"><input name="showIntentTrail" type="checkbox" /> Show Intent Trail: the decisions behind agent-written pull requests, read from the repository's git notes</label>
+          <label>Intent Trail server (optional) <input name="intentServer" type="url" placeholder="http://localhost:8787" spellcheck="false" /></label>
           <div class="form-actions">
             <button type="submit" class="button button-primary">Save</button>
             <span id="saved" class="muted" role="status"></span>

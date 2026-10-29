@@ -41,8 +41,62 @@ async function graphql(host, query, variables) {
   return body.data;
 }
 
+// Intent Trail: decision records from git notes (and an optional Intent Trail server).
+importScripts('shared/intent-notes.js', 'shared/intent-source.js');
+const { intentSource } = globalThis.GitHubStacks;
+
+function restOrNull(host) {
+  return (path) =>
+    request(host, path).catch((error) => {
+      if (error.code === 'not_found') return null;
+      throw error;
+    });
+}
+
+// The server is opt-in (settings) and needs its origin granted from the settings page.
+async function intentServer() {
+  const { settings = {} } = await chrome.storage.sync.get('settings');
+  if (!settings.intentServer) return null;
+  return async (path, init = {}) => {
+    const response = await fetch(new URL(path, settings.intentServer), init);
+    if (!response.ok) throw new Error(`The Intent Trail server answered ${response.status}`);
+    return response.json();
+  };
+}
+
+const intentChecksKey = (host, message) => `${host}/${message.owner}/${message.repository}#${message.number}:${message.reviewer}`.toLowerCase();
+
+async function intentPullRequest(host, message) {
+  const data = await intentSource.loadPullRequest({ gh: restOrNull(host), server: await intentServer(), host, ...message });
+  const { intentChecks = {} } = await chrome.storage.local.get('intentChecks');
+  data.checks = [...new Set([...data.checks, ...(intentChecks[intentChecksKey(host, message)] || [])])];
+  return data;
+}
+
+// Check marks stay in this browser, and go to the server too when one is set.
+async function intentCheck(host, message) {
+  const key = intentChecksKey(host, message);
+  const { intentChecks = {} } = await chrome.storage.local.get('intentChecks');
+  const checked = new Set(intentChecks[key] || []);
+  if (message.checked) checked.add(message.itemId);
+  else checked.delete(message.itemId);
+  await chrome.storage.local.set({ intentChecks: { ...intentChecks, [key]: [...checked] } });
+  const server = await intentServer();
+  if (server) {
+    const body = { repo: `${message.owner}/${message.repository}`, number: message.number, reviewer: message.reviewer, item_id: message.itemId, checked: message.checked };
+    await server('/api/checks', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+  }
+  return null;
+}
+
 async function handle(message, sender) {
   switch (message.type) {
+    case 'intent-pull-request':
+      return intentPullRequest(senderHost(message, sender), message);
+    case 'intent-timeline':
+      return intentSource.loadTimeline({ gh: restOrNull(senderHost(message, sender)), ...message });
+    case 'intent-check':
+      return intentCheck(senderHost(message, sender), message);
     case 'graphql':
       return graphql(senderHost(message, sender), message.query, message.variables);
     case 'rest':

@@ -9,6 +9,8 @@
     workdayEnd: 18,
     workdays: [1, 2, 3, 4, 5],
     showNavigator: true,
+    showIntentTrail: true,
+    intentServer: '',
   };
 
   function isBot(actor) {
