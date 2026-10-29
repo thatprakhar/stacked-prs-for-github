@@ -280,6 +280,8 @@
     .launcher { position: fixed; right: 20px; bottom: 20px; z-index: 2147483000; display: inline-flex; align-items: center; gap: 8px;
       border: 1px solid var(--itl-border); background: var(--itl-bg); color: var(--itl-fg); font-size: 13px; font-weight: 600;
       padding: 0 14px; height: 38px; border-radius: 999px; box-shadow: var(--itl-shadow); }
+    .launcher.quiet { color: var(--itl-muted); font-weight: 500; box-shadow: none; }
+    .launcher.quiet .accent { color: var(--itl-muted); }
     .launcher .badge { background: var(--itl-warn-bg); color: var(--itl-warn-fg); padding: 1px 8px; border-radius: 999px; font-size: 12px; }
     .launcher .okc { color: var(--itl-ok); }
 
@@ -688,8 +690,9 @@
     return h(
       'div',
       { class: 'empty' },
-      h('p', null, h('strong', null, 'No intent captured for this PR.')),
-      h('p', null, 'Authors: install the Intent Trail plugin for Claude Code or Codex, then run ', h('code', null, 'intent-trail enable'), ' in the repo.'),
+      h('p', null, h('strong', null, 'No decisions recorded for this pull request.')),
+      h('p', null, 'They appear when it is written with Claude Code or Codex and the Intent Trail plugin, which records the goal, the decisions and the assumptions behind the code.'),
+      h('p', null, 'The ', h('button', { class: 'link', onclick: () => ((state.tab = 'history'), loadHistory(), render()) }, 'History'), ' tab shows decisions behind pull requests already merged here.'),
     );
   }
 
@@ -744,7 +747,7 @@
     const left = remaining();
     return h(
       'button',
-      { class: 'launcher', style: `bottom:${launcherOffset()}px`, 'aria-label': 'Open Intent Trail', onclick: () => openTo({}) },
+      { class: `launcher ${has ? '' : 'quiet'}`, style: `bottom:${launcherOffset()}px`, 'aria-label': has ? 'Open Intent Trail' : 'Open Intent Trail (no decisions recorded for this pull request)', onclick: () => openTo({}) },
       h('span', { class: 'accent' }, icon('compass', 16)),
       'Intent',
       state.loading && !v ? h('span', { class: 'note' }, '…') : null,
@@ -786,9 +789,10 @@
     );
   }
 
-  // Silent unless there is something to show: most pull requests and repositories have no records.
+  // Pull requests always get the collapsed pill once loaded (the sidebar explains when there are no
+  // records); repository pages only show the Decisions button when the default branch has records.
   function hasContent() {
-    return state.mode === 'pr' ? state.view?.sessions.length > 0 : state.history?.data?.entries.length > 0;
+    return state.mode === 'pr' ? !state.loading && (!!state.view || !!state.error) : state.history?.data?.entries.length > 0;
   }
 
   function render() {
