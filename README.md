@@ -119,6 +119,15 @@ reads them through the GitHub API with your token. Pull requests and repositorie
 off with **Show Intent Trail** in the settings. An optional Intent Trail server (settings, local addresses only) also
 shares check marks across browsers.
 
+## Development
+
+The extension has no build step: load the repository folder from `chrome://extensions` with **Load unpacked**.
+
+```sh
+npm test           # runs test/*.test.js with Node's built-in test runner
+npm run package    # writes dist/stacked-prs-for-github-<version>.zip for the Chrome Web Store
+```
+
 ## License
 
 [MIT](LICENSE)
