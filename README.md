@@ -101,6 +101,24 @@ SLA 6 hours, at risk after 3. All of this is editable in the settings page.
 | Bot approved | A bot such as CodeRabbit approved it and no person has reviewed it yet; the clock has stopped |
 | Draft, Merged, Closed | Not on the clock |
 
+## Intent Trail
+
+On pull requests written with a coding agent (Claude Code or Codex) and the Intent Trail plugin, a panel on the right shows
+why the code is the way it is, in three layers:
+
+- **Brief**: the goal, at most three things worth checking (unverified assumptions and risky agent choices, each with a
+  check mark), the ground rules the author set, and everything else folded away. A strip above the pull request's tabs
+  and chips on file headers in *Files changed* lead to it.
+- **Story**: the work as a few chapters, with course corrections and checkpoints (plan approved, questions answered, pull
+  request opened).
+- **History**: the decisions behind the pull requests merged into the base branch, newest first. On a repository's main
+  page, the **Decisions** button opens the same history for the default branch.
+
+The records come from the repository itself: the plugin writes them as git notes (`refs/notes/intent`), and the extension
+reads them through the GitHub API with your token. Pull requests and repositories without records show nothing. Turn it
+off with **Show Intent Trail** in the settings. An optional Intent Trail server (settings, local addresses only) also
+shares check marks across browsers.
+
 ## License
 
 [MIT](LICENSE)

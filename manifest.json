@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Stacked PRs for GitHub",
   "short_name": "Stacked PRs",
-  "version": "1.7.1",
-  "description": "See stacked PRs as stacks, track review SLAs, search with filter tokens, read issues as cards and search code with tbgs.",
+  "version": "1.8.0",
+  "description": "Stacked PRs, review SLAs, token search, issue cards, tbgs code search, and the decisions behind agent-written PRs.",
   "minimum_chrome_version": "111",
   "icons": {
     "16": "icons/icon-16.png",
@@ -17,6 +17,10 @@
   "host_permissions": [
     "https://api.github.com/*",
     "https://*.ghe.com/*"
+  ],
+  "optional_host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*"
   ],
   "background": {
     "service_worker": "src/background.js"
@@ -47,6 +51,7 @@
         "src/shared/activity.js",
         "src/shared/search.js",
         "src/shared/code-search.js",
+        "src/shared/intent-view.js",
         "src/content/octicons.js",
         "src/content/api.js",
         "src/content/render.js",
@@ -56,6 +61,7 @@
         "src/content/issue-view.js",
         "src/content/stack-navigator.js",
         "src/content/code-search-bar.js",
+        "src/content/intent-trail.js",
         "src/content/main.js"
       ],
       "css": [

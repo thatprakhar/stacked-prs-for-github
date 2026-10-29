@@ -1,5 +1,5 @@
 (function (root) {
-  const { ListView, IssueListView, StackNavigator, CodeSearchBar, api } = root.GitHubStacks;
+  const { ListView, IssueListView, StackNavigator, CodeSearchBar, IntentTrail, api } = root.GitHubStacks;
 
   const LIST_PATH = /^\/([^/]+)\/([^/]+)\/pulls(?:\/.*)?$/;
   const PULL_REQUEST_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)(?:\/([^/]+))?/;
@@ -26,6 +26,7 @@
   const issueView = new IssueListView();
   const navigator = new StackNavigator();
   const codeSearchBar = new CodeSearchBar();
+  const intentTrail = new IntentTrail();
 
   let remembered = null;
   function remember(route) {
@@ -43,6 +44,8 @@
     else issueView.unmount();
     if (route.kind === 'pull_request') navigator.sync(route);
     else navigator.unmount();
+    if (route.kind === 'pull_request' || route.kind === 'repository') intentTrail.sync(route);
+    else intentTrail.unmount();
     const onRepository = route.kind === 'repository' && codeSearchBar.sync(route);
     if (route.kind !== 'repository') codeSearchBar.unmount();
     if (onRepository || ['list', 'issues', 'pull_request'].includes(route.kind)) remember(route);
@@ -66,6 +69,7 @@
       listView.key = null;
       issueView.key = null;
       navigator.key = null;
+      intentTrail.key = null;
       schedule();
     }
   });

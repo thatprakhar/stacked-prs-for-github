@@ -158,6 +158,7 @@
         runtime: {
           id: 'preview',
           async sendMessage(message) {
+            if (demo && message.type.startsWith('intent-')) return { ok: true, data: { turns: [], checks: [], brief: null, files: [], entries: [], ref: 'main', scanned: 0 } };
             if (demo) return { ok: true, data: GitHubStacksDemo.answer(message) };
             const response = await fetch('/message', { method: 'POST', body: JSON.stringify(message) });
             return response.json();
@@ -195,6 +196,8 @@
     <script src="../src/shared/activity.js"></script>
     <script src="../src/shared/search.js"></script>
     <script src="../src/shared/code-search.js"></script>
+    <script src="../src/shared/intent-notes.js"></script>
+    <script src="../src/shared/intent-view.js"></script>
     <script src="../src/content/octicons.js"></script>
     <script src="../src/content/api.js"></script>
     <script src="../src/content/render.js"></script>
@@ -204,6 +207,7 @@
     <script src="../src/content/issue-view.js"></script>
     <script src="../src/content/stack-navigator.js"></script>
     <script src="../src/content/code-search-bar.js"></script>
+    <script src="../src/content/intent-trail.js"></script>
     <script src="../src/content/main.js"></script>
   </body>
 </html>

@@ -277,7 +277,20 @@
     return send({ type: 'open-options' });
   }
 
+  // Intent Trail: decision records for a pull request, and a branch's decision history.
+  function intentPullRequest(owner, repository, number, reviewer) {
+    return send({ type: 'intent-pull-request', owner, repository, number, reviewer });
+  }
+
+  function intentTimeline(owner, repository, ref) {
+    return send({ type: 'intent-timeline', owner, repository, ref });
+  }
+
+  function setIntentCheck(owner, repository, number, reviewer, itemId, checked) {
+    return send({ type: 'intent-check', owner, repository, number, reviewer, itemId, checked });
+  }
+
   root.GitHubStacks = Object.assign(root.GitHubStacks || {}, {
-    api: { searchItems, countItems, rememberRepository, listStacks, stackForPullRequest, pullRequestsByNumber, activity, settings, openOptions, extensionAlive, readLocal, writeLocal, CONTEXT_INVALIDATED },
+    api: { searchItems, countItems, rememberRepository, listStacks, stackForPullRequest, pullRequestsByNumber, activity, settings, openOptions, intentPullRequest, intentTimeline, setIntentCheck, extensionAlive, readLocal, writeLocal, CONTEXT_INVALIDATED },
   });
 })(globalThis);

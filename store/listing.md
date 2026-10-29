@@ -8,7 +8,7 @@ Everything the developer dashboard asks for, in the order it asks. Images are in
 **Name** (from the manifest): Stacked PRs for GitHub
 
 **Summary** (from the manifest, 132 characters at most):
-See stacked PRs as stacks, track review SLAs, search with filter tokens, read issues as cards and search code with tbgs.
+Stacked PRs, review SLAs, token search, issue cards, tbgs code search, and the decisions behind agent-written PRs.
 
 **Category:** Developer Tools · **Language:** English
 
@@ -33,6 +33,11 @@ A power search instead of GitHub's
 • Quick filters for updated, review requested from you, yours, in a stack and hide drafts; sort by newest, last updated, most commented or longest waiting.
 • Stacks stay together: a stack with some matching pull requests shows those and how many match.
 • Larger lists are searched on GitHub, and the search stays in the address bar so it can be bookmarked or shared.
+
+On an agent-written pull request (Intent Trail)
+• When the pull request was written with Claude Code or Codex and the Intent Trail plugin, a panel shows its goal, at most three things worth checking (unverified assumptions, risky agent choices) with check marks, and the ground rules the author set.
+• A story view tells how the work went, with course corrections; a history view lists the decisions behind the pull requests merged into the base branch.
+• The records come from the repository itself (git notes), so there is nothing else to sign in to. On other pull requests nothing appears.
 
 On a repository's issue list
 • Each issue is a card with its title, labels and type, a preview of its description, its milestone and parent, and who opened it when.
@@ -76,8 +81,8 @@ The screenshots use the fictional repository in `dev/demo.js`; no real pull requ
 
 **Single purpose:**
 Makes a GitHub repository's pull requests, issues and code faster to read and search: pull requests grouped into their
-stacks with how long each has waited for review, issues shown with their descriptions, a search that filters both, and
-code search from the repository page or the address bar.
+stacks with how long each has waited for review, the reasoning behind agent-written pull requests, issues shown with
+their descriptions, a search that filters both, and code search from the repository page or the address bar.
 
 **Address bar keyword (`omnibox`):** `tbgs` and a space in the address bar sends the words typed after it to GitHub's code
 search, on the host and repository the user chose in the settings (or the last repository they visited). The words go
@@ -87,9 +92,10 @@ only to GitHub, as a normal search page; the extension does not read or keep the
 
 | Permission | Justification |
 |---|---|
-| `storage` | Saves the user's GitHub token, SLA and work-hours settings, which stacks are expanded, the code search shortcut's repository and the last repository visited on each host. |
+| `storage` | Saves the user's GitHub token, SLA and work-hours settings, which stacks are expanded, the code search shortcut's repository, the last repository visited on each host, and Intent Trail check marks. |
 | Host `https://api.github.com/*` | Reads pull requests, issues, reviews, checks and stacks from the GitHub API for github.com, with the user's token. |
 | Host `https://*.ghe.com/*` | GitHub Enterprise Cloud: each company has its own `<company>.ghe.com` host and `api.<company>.ghe.com` API. The extension shows its views on those pages and reads pull requests and issues from that API. The company name is not known in advance, so the wildcard is needed. |
+| Optional host `http://localhost/*`, `http://127.0.0.1/*` | Only requested when the user enters a local Intent Trail server address on the settings page, to share Intent Trail check marks through it. Never requested otherwise. |
 | Content scripts on `https://github.com/*` and `https://*.ghe.com/*` | Draws the stacked list on pull request list pages, the issue cards on issue list pages, the stack navigator on pull request pages and the code search box on repository pages. GitHub navigates without reloading, so the script must be present across the site to notice when one of those pages opens. |
 
 **Remote code:** No, I am not using remote code. All JavaScript is in the package.
