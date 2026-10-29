@@ -76,6 +76,7 @@
     refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
     chevron: '<path d="M9 6l6 6-6 6"/>',
     ring: '<circle cx="12" cy="12" r="9.5"/>',
+    copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
     done: '<circle cx="12" cy="12" r="10" fill="currentColor" stroke="none"/><path d="M7.5 12.5l3 3 6-6.5" stroke="var(--itl-on-ok)" stroke-width="2.2"/>',
   };
   // Static markup from the table above only; never data.
@@ -274,6 +275,13 @@
     .tl-list li { display: flex; gap: 8px; align-items: flex-start; }
     .tl-list .ic { margin-top: 2px; }
     .tl-now { border: 1px dashed var(--itl-border); border-radius: 10px; padding: 10px 12px; }
+    .token { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 8px 2px; }
+    .token h2 { margin: 0; font-size: 16px; font-weight: 600; }
+    .token p { margin: 0; font-size: 13px; line-height: 1.5; }
+    .token .note { color: var(--itl-muted); }
+    .cmd { display: flex; align-items: center; gap: 6px; width: 100%; padding: 6px 6px 6px 10px; border: 1px solid var(--itl-border); border-radius: 8px; background: var(--itl-subtle); }
+    .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; background: none; padding: 0; }
+    .launcher.warn { color: var(--itl-warn-fg); border-color: var(--itl-warn-border); }
     .empty { color: var(--itl-muted); padding: 32px 4px; text-align: center; }
     .empty p { margin: 6px 0; }
 
@@ -676,11 +684,35 @@
       });
   }
 
+  const needsToken = (e) => e && (e.error === 'no_token' || e.error === 'bad_token');
+
+  // No token (or a rejected one) for this page's host: say which host, open its settings row, and
+  // offer the GitHub CLI command that prints one.
+  function tokenState(e) {
+    const host = (state.pr ?? state.repoRef)?.host ?? location.host;
+    const command = `gh auth token --hostname ${host} | pbcopy`;
+    const missing = e.error === 'no_token';
+    return h(
+      'div',
+      { class: 'token' },
+      h('h2', null, missing ? `Add a token for ${host}` : `Replace the token for ${host}`),
+      h('p', null, missing
+        ? `Intent Trail reads this repository’s decisions through the GitHub API of ${host}, with a read-only token saved in this extension.`
+        : `GitHub rejected the token saved for ${host}. It may have expired or lost access to this repository.`),
+      h('button', { class: 'btn primary', onclick: () => api.openOptions().catch(() => toast('Couldn’t open the settings.')) }, missing ? 'Add a token' : 'Replace the token'),
+      h('p', { class: 'note' }, 'The quickest way to get one is the GitHub CLI. This copies it:'),
+      h(
+        'div',
+        { class: 'cmd' },
+        h('code', null, command),
+        h('button', { class: 'icon-btn', 'aria-label': 'Copy the command', title: 'Copy the command', onclick: () => navigator.clipboard.writeText(command).then(() => toast('Copied'), () => toast('Couldn’t copy')) }, icon('copy', 14)),
+      ),
+      h('p', { class: 'note' }, 'Then paste it on the settings page and click Save. The token stays in your browser.'),
+    );
+  }
+
   function errorState(e) {
-    const settings = h('button', { class: 'link', onclick: () => api.openOptions().catch(() => {}) }, 'settings');
-    if (e.error === 'no_token' || e.error === 'bad_token') {
-      return h('div', { class: 'empty' }, h('p', null, e.error === 'no_token' ? 'Add a token for this host to read decisions.' : 'GitHub rejected the saved token.'), h('p', null, 'Open the ', settings, '.'));
-    }
+    if (needsToken(e)) return tokenState(e);
     if (e.error === api.CONTEXT_INVALIDATED) return h('div', { class: 'empty' }, h('p', null, 'The extension was updated. Reload the page.'));
     return h('div', { class: 'empty' }, h('p', null, `Couldn’t read decisions: ${e.message ?? e.error}`));
   }
@@ -747,11 +779,12 @@
     const left = remaining();
     return h(
       'button',
-      { class: `launcher ${has ? '' : 'quiet'}`, style: `bottom:${launcherOffset()}px`, 'aria-label': has ? 'Open Intent Trail' : 'Open Intent Trail (no decisions recorded for this pull request)', onclick: () => openTo({}) },
+      { class: `launcher ${needsToken(state.error) ? 'warn' : has ? '' : 'quiet'}`, style: `bottom:${launcherOffset()}px`, 'aria-label': has ? 'Open Intent Trail' : 'Open Intent Trail (no decisions recorded for this pull request)', onclick: () => openTo({}) },
       h('span', { class: 'accent' }, icon('compass', 16)),
       'Intent',
       state.loading && !v ? h('span', { class: 'note' }, '…') : null,
-      state.error ? h('span', { class: 'badge' }, '!') : null,
+      state.error && !needsToken(state.error) ? h('span', { class: 'badge' }, '!') : null,
+      needsToken(state.error) ? h('span', { style: 'margin-left:-4px' }, '· Add token') : null,
       has && left > 0 && h('span', { class: 'badge' }, String(left)),
       has && left === 0 && v.attention.length > 0 && h('span', { class: 'okc' }, icon('check', 14)),
     );
@@ -945,7 +978,7 @@
     teardown();
     if (!(await enabled()) || current !== key) return;
     state.mode = 'pr';
-    state.pr = { owner: route.owner, repo: route.repository, number: route.number, key };
+    state.pr = { host: route.host, owner: route.owner, repo: route.repository, number: route.number, key };
     state.open = storedOpen() === '1';
     load();
   }
@@ -954,7 +987,7 @@
     teardown();
     if (!(await enabled()) || current !== key) return;
     state.mode = 'repo';
-    state.repoRef = { owner: route.owner, repo: route.repository, ref: null, key };
+    state.repoRef = { host: route.host, owner: route.owner, repo: route.repository, ref: null, key };
     state.open = storedOpen() === '1';
     loadHistory(); // the Decisions button only appears when the default branch has records
     render();
