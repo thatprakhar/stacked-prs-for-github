@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Stacked PRs for GitHub",
   "short_name": "Stacked PRs",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Stacked PRs, review SLAs, token search, issue cards, tbgs code search, and the decisions behind agent-written PRs.",
   "minimum_chrome_version": "111",
   "icons": {
